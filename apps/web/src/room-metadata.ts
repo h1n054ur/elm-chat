@@ -20,5 +20,12 @@ export async function loadRoomMetadata(roomId: string): Promise<RoomMetadata> {
     throw new RoomMetadataError("temporary");
   }
   if (!response.ok) throw new RoomMetadataError("failed");
-  return response.json();
+  try {
+    return await response.json();
+  } catch (cause) {
+    // The response body can lose its connection after headers have arrived.
+    // Malformed JSON remains a terminal parsing failure.
+    if (cause instanceof TypeError) throw new RoomMetadataError("temporary");
+    throw cause;
+  }
 }
