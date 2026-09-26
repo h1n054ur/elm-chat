@@ -747,7 +747,11 @@ function FileCard({ file, onDownload }: { file: UiFile; onDownload: () => void }
   );
 }
 
-function InviteCheckingScreen({ connection, error }: { connection: string; error: string | null }) {
+function InviteCheckingScreen({ connection, error, onRetry }: {
+  connection: string;
+  error: string | null;
+  onRetry?: () => void;
+}) {
   return (
     <main className="room-shell room-shell-centered">
       <section className="access-screen" aria-live="polite">
@@ -755,6 +759,7 @@ function InviteCheckingScreen({ connection, error }: { connection: string; error
         <h1 className="access-title">{t("checkingInvite")}</h1>
         <p className="access-copy">{error ? connection : t("verifyingInvite")}</p>
         {error ? <p className="error-text" role="alert">{error}</p> : <p>{connection}</p>}
+        {onRetry ? <button className="secondary-button" onClick={onRetry} type="button">{t("retryConnection")}</button> : null}
         <MakeYourOwnCallout />
       </section>
     </main>
@@ -1205,6 +1210,9 @@ function RoomPage({ roomId }: { roomId: string }) {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connection, setConnection] = useState(t("connecting"));
+  const [canRetryConnection, setCanRetryConnection] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+  const retryConnectionRef = useRef<(() => void) | null>(null);
   const [keyReady, setKeyReady] = useState(false);
   const [presence, setPresence] = useState<PresenceSnapshot>({ count: 0, connectedSessionIds: [] });
   const [now, setNow] = useState(Date.now());
@@ -1290,6 +1298,8 @@ function RoomPage({ roomId }: { roomId: string }) {
       toSessionId ?? null,
       payload
     );
+    // Signing yields to the browser; the connection may close before it finishes.
+    if (socketRef.current !== socket || socket.readyState !== WebSocket.OPEN || !joinedRef.current) return null;
     socket.send(JSON.stringify({ type: "peer_data", toSessionId, data }));
     eventReplayGuardRef.current?.markLocal(data.eventId);
     return data;
@@ -1590,12 +1600,28 @@ function RoomPage({ roomId }: { roomId: string }) {
 
     let active = true;
     let reconnectAllowed = true;
+    const connectionAllowed = () => active && reconnectAllowed &&
+      (roomStatusRef.current === null || roomStatusRef.current === "open");
     const reconnect = new ReconnectScheduler(
-      () => active && reconnectAllowed &&
-        (roomStatusRef.current === null || roomStatusRef.current === "open"),
+      connectionAllowed,
       () => { void bootstrap(); },
-      (delay) => setConnection(t("reconnecting", { seconds: Math.ceil(delay / 1000) }))
+      (delay) => {
+        setCanRetryConnection(false);
+        setConnection(t("reconnecting", { seconds: Math.ceil(delay / 1000) }));
+      }
     );
+    function stopReconnecting() {
+      reconnectAllowed = false;
+      reconnect.cancel();
+      if (active) setCanRetryConnection(false);
+    }
+    retryConnectionRef.current = () => {
+      if (!reconnect.canRetry) return;
+      setCanRetryConnection(false);
+      setConnectionError(null);
+      setConnection(t("connecting"));
+      reconnect.retryNow();
+    };
     const tick = window.setInterval(() => setNow(Date.now()), 1000);
 
     async function bootstrap() {
@@ -1605,7 +1631,7 @@ function RoomPage({ roomId }: { roomId: string }) {
           deriveRoomKey(roomSecret),
           loadIdentityKeyPair(roomId, sessionId)
         ]);
-        if (!active || !reconnectAllowed) {
+        if (!connectionAllowed()) {
           return;
         }
         roomKeyRef.current = key;
@@ -1618,6 +1644,7 @@ function RoomPage({ roomId }: { roomId: string }) {
         roomStatusRef.current = metadata.status;
         setRoom(metadata);
         if (metadata.status !== "open") {
+          stopReconnecting();
           setReady(true);
           setConnection(t("closed"));
           setRoomNotice(roomStateMessage(metadata.status));
@@ -1628,6 +1655,7 @@ function RoomPage({ roomId }: { roomId: string }) {
         socketRef.current = socket;
 
         socket.addEventListener("open", () => {
+          if (!connectionAllowed() || socketRef.current !== socket) return;
           setConnection(t("connected"));
           joinedRef.current = false;
           socket.send(
@@ -1643,10 +1671,12 @@ function RoomPage({ roomId }: { roomId: string }) {
         });
 
         socket.addEventListener("close", (closeEvent) => {
-          if (!active) return;
+          if (!active || socketRef.current !== socket) return;
           joinedRef.current = false;
+          keyReadyRef.current = false;
+          setKeyReady(false);
           if (isInviteGuest && closeEvent.code === 4403) {
-            reconnectAllowed = false;
+            stopReconnecting();
             setInviteAccess((current) => {
               if (current === "claimed" || current === "used") {
                 return current;
@@ -1666,18 +1696,23 @@ function RoomPage({ roomId }: { roomId: string }) {
             return;
           }
           if (reconnect.schedule()) return;
+          setCanRetryConnection(reconnect.canRetry);
           setConnection(roomStatusRef.current === "open" ? t("disconnected") : t("closed"));
         });
 
         socket.addEventListener("error", () => {
+          if (!connectionAllowed() || socketRef.current !== socket) return;
           setConnection(t("connectionError"));
         });
 
         socket.addEventListener("message", async (event) => {
+          if (!connectionAllowed() || socketRef.current !== socket) return;
           const payload = JSON.parse(String(event.data)) as ServerEvent;
           if (payload.type === "joined") {
             joinedRef.current = true;
             reconnect.reset();
+            setCanRetryConnection(false);
+            setConnectionError(null);
             startTransition(() => {
               setInviteAccess("granted");
               setRoom(payload.room);
@@ -1770,7 +1805,7 @@ function RoomPage({ roomId }: { roomId: string }) {
           }
 
           if (payload.type === "room_state") {
-            reconnectAllowed = false;
+            stopReconnecting();
             roomStatusRef.current = payload.status;
             startTransition(() => {
               setRoom((current) =>
@@ -1793,7 +1828,7 @@ function RoomPage({ roomId }: { roomId: string }) {
 
           if (payload.type === "participant_kicked") {
             if (payload.sessionId === sessionId) {
-              reconnectAllowed = false;
+              stopReconnecting();
               setRemovedFromRoom(true);
               setRoomNotice(null);
               setError(null);
@@ -1814,7 +1849,7 @@ function RoomPage({ roomId }: { roomId: string }) {
               payload.code === "invite_claimed" ||
               payload.code === "invite_used"
             ) {
-              reconnectAllowed = false;
+              stopReconnecting();
               setInviteAccess(
                 payload.code === "invite_claimed"
                   ? "claimed"
@@ -1836,17 +1871,21 @@ function RoomPage({ roomId }: { roomId: string }) {
           }
         });
       } catch (cause) {
-        if (!active || !reconnectAllowed) return;
+        if (!connectionAllowed()) return;
         if (cause instanceof RoomMetadataError && cause.kind === "missing") {
-          reconnectAllowed = false;
-          reconnect.cancel();
+          stopReconnecting();
           setNotFound(true);
           setReady(true);
           return;
         }
-        if (cause instanceof RoomMetadataError && cause.kind === "temporary" && reconnect.schedule()) {
+        if (cause instanceof RoomMetadataError && cause.kind === "temporary") {
+          if (reconnect.schedule()) return;
+          setCanRetryConnection(reconnect.canRetry);
+          setConnection(t("disconnected"));
+          setConnectionError(t("failedJoinRoom"));
           return;
         }
+        setCanRetryConnection(false);
         setConnection(t("disconnected"));
         setError(cause instanceof RoomMetadataError ? t("failedJoinRoom") :
           cause instanceof Error ? cause.message : t("failedJoinRoom"));
@@ -2086,7 +2125,7 @@ function RoomPage({ roomId }: { roomId: string }) {
       }
 
       if (payload.type === "peer_destroy") {
-        reconnectAllowed = false;
+        stopReconnecting();
         setRoomNotice(t("peerDestroyed"));
         setConnection(t("closed"));
         clearRoomSecurityState();
@@ -2097,9 +2136,9 @@ function RoomPage({ roomId }: { roomId: string }) {
 
     return () => {
       active = false;
-      reconnectAllowed = false;
+      stopReconnecting();
+      retryConnectionRef.current = null;
       window.clearInterval(tick);
-      reconnect.cancel();
       socketRef.current?.close();
       for (const transfer of incomingFilesRef.current.values()) {
         if (transfer.timeoutId) window.clearTimeout(transfer.timeoutId);
@@ -2136,7 +2175,10 @@ function RoomPage({ roomId }: { roomId: string }) {
       return;
     }
     const interval = window.setInterval(() => {
-      socketRef.current?.send(JSON.stringify({ type: "ping" }));
+      const socket = socketRef.current;
+      if (socket?.readyState === WebSocket.OPEN && joinedRef.current) {
+        socket.send(JSON.stringify({ type: "ping" }));
+      }
     }, 15000);
     return () => window.clearInterval(interval);
   }, [ready, room?.status]);
@@ -2446,7 +2488,8 @@ function RoomPage({ roomId }: { roomId: string }) {
   }
 
   if (isInviteGuest && (inviteAccess !== "granted" || !room || !ready)) {
-    return <InviteCheckingScreen connection={connection} error={error} />;
+    return <InviteCheckingScreen connection={connection} error={connectionError ?? error}
+      onRetry={canRetryConnection ? () => retryConnectionRef.current?.() : undefined} />;
   }
 
   return (
@@ -2465,6 +2508,11 @@ function RoomPage({ roomId }: { roomId: string }) {
             <span>{t("present", { count: presentCount })}</span>
           </div>
           <div className="room-actions">
+            {canRetryConnection ? (
+              <button className="secondary-button" onClick={() => retryConnectionRef.current?.()} type="button">
+                {t("retryConnection")}
+              </button>
+            ) : null}
             {isCreator ? (
               <button
                 className={`secondary-button ${inviteFeedback !== "idle" ? "button-success" : ""}`}
@@ -2586,6 +2634,7 @@ function RoomPage({ roomId }: { roomId: string }) {
         </p>
       ) : null}
       {error ? <p className="error-text room-error" role="alert">{error}</p> : null}
+      {connectionError ? <p className="error-text room-error" role="alert">{connectionError}</p> : null}
       {isCreator && invites.length > 0 ? (
         <section className="invite-panel">
           <span className="eyebrow">{t("invites")}</span>

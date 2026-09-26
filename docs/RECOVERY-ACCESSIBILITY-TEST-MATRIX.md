@@ -11,6 +11,7 @@ local display only; it is not proof that another participant received it.
 | Composer keyboard | Plain Enter submits; IME confirmation and modified Enter retain browser behavior | `tests/composer.test.ts` |
 | Reconnect backoff | Attempts wait 0.5, 1, 2, 4, and 8 seconds, then stop | `tests/recovery-state.test.ts` |
 | Metadata recovery | Network errors, HTTP 408, and HTTP 5xx share the socket reconnect budget; missing rooms remain terminal; canceled retries do not run | `tests/reconnect-metadata.test.ts` |
+| Deliberate retry | Retry is available only after exhaustion; one action starts one new bounded cycle; repeated clicks and terminal states cannot revive attempts | `tests/reconnect-metadata.test.ts` |
 | Replay after refresh | A verified event ID remains rejected after the guard is reconstructed | `tests/recovery-state.test.ts` and `npm run check:message-protocol` |
 | Corrupt or blocked storage | The tab keeps in-memory protection and does not crash | `tests/recovery-state.test.ts` |
 | Sender and room binding | Changed sender, room, target, payload, or signature fails verification | `npm run check:message-protocol` |
@@ -24,7 +25,9 @@ local display only; it is not proof that another participant received it.
 | Background and foreground | Join on mobile, background for 30 seconds, return | Status announces reconnect if needed; sending stays disabled until the current room key is ready |
 | Offline and online | Disable networking, attempt a send, restore networking | No false delivery claim; bounded reconnect begins; a later send works after `Connected` returns |
 | Metadata unavailable during recovery | Drop the socket, fail the next room metadata fetch, return HTTP 503 once, then restore the endpoint before retries run out | Retries continue through metadata failures; 503 never shows `Room not found`; admission resets the retry budget |
-| Initial invite while offline | Open a synthetic invite while offline and keep networking disabled through the five retries | The invite screen announces retry status and ultimately shows disconnected/error text instead of silently checking forever; reload after restoring connectivity to try again |
+| Initial invite while offline | Open a synthetic invite while offline and keep networking disabled through the five retries | The invite screen announces retry status and ultimately shows disconnected/error text and `Retry connection`; restoring networking and activating retry resumes admission without a reload |
+| Manual retry after exhaustion | Write a draft, disconnect through all five retries, restore the network, and activate `Retry connection` twice quickly | One fresh bounded cycle starts, the action disappears while connecting, draft/session identity remain intact, and sending remains disabled until the new room key is ready |
+| Terminal state during retry | While reconnecting, expire/destroy the synthetic room or reject its invite, then activate any stale retry control | Terminal UI replaces retry; no late socket or metadata result reopens the room |
 | Wi-Fi to cellular | Change networks during an open room | At most one active session remains; membership changes rotate the room key; status settles at `Connected` |
 | Repeated flaps | Toggle offline/online six times | Backoff remains bounded; UI does not claim delivery for unsent content; no reconnect storm continues after the fifth failed attempt |
 | Expiry while reconnecting | Disconnect until the room idle or maximum deadline passes, then reconnect | Closed-room screen is shown and replay, identity, and key state for the ended room is cleared |
