@@ -744,6 +744,7 @@ select {
 }
 
 .chat-stage {
+  position: relative;
   min-height: 0;
   flex: 1 1 auto;
   height: auto;
@@ -1606,4 +1607,15 @@ select {
     scroll-behavior: auto !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+.jump-to-latest {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  z-index: 1;
+  background: var(--paper, #fff);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
