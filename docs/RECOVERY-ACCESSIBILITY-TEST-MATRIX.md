@@ -8,6 +8,7 @@ local display only; it is not proof that another participant received it.
 
 | Area | Expected result | Gate |
 | --- | --- | --- |
+| Composer keyboard | Plain Enter submits; IME confirmation and modified Enter retain browser behavior | `tests/composer.test.ts` |
 | Reconnect backoff | Attempts wait 0.5, 1, 2, 4, and 8 seconds, then stop | `tests/recovery-state.test.ts` |
 | Replay after refresh | A verified event ID remains rejected after the guard is reconstructed | `tests/recovery-state.test.ts` and `npm run check:message-protocol` |
 | Corrupt or blocked storage | The tab keeps in-memory protection and does not crash | `tests/recovery-state.test.ts` |
@@ -33,6 +34,7 @@ local display only; it is not proof that another participant received it.
 
 | Check | Pass condition |
 | --- | --- |
+| IME and multiline composition | With a Japanese or Chinese IME, Enter confirms a candidate without sending; Shift+Enter inserts a newline; plain Enter after composition sends |
 | Keyboard only | Create, invite, write, attach, download, remove, and destroy actions are reachable in a logical order with visible focus |
 | Screen reader | Connection changes use a polite live region; errors use `role="alert"`; the conversation uses `role="log"` and announces additions |
 | Focus after terminal state | The replacement room-gone, invalid-invite, or removed screen exposes its heading and primary next action without hidden controls remaining active |

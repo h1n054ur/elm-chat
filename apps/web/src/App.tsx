@@ -47,6 +47,7 @@ import { t } from "./localization";
 import { InvalidMessageEnvelopeError, receiveTextMessage } from "./message-receive";
 import { ReplayGuard } from "./replay";
 import { reconnectDelayMs } from "./reconnect";
+import { handleComposerKeyDown } from "./composer";
 
 type View = "landing" | "marketing" | "room";
 
@@ -2244,24 +2245,6 @@ function RoomPage({ roomId }: { roomId: string }) {
     } else {
       messageRef.current.set(envelope.messageId, sentEvent);
     }
-  }
-
-  function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key !== "Enter") {
-      return;
-    }
-
-    if (event.ctrlKey || event.metaKey) {
-      return;
-    }
-
-    event.preventDefault();
-    const form = event.currentTarget.form;
-    if (!form) {
-      return;
-    }
-
-    form.requestSubmit();
   }
 
   async function handleCopyLink() {
