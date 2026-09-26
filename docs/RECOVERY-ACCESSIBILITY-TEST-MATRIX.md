@@ -38,6 +38,7 @@ local display only; it is not proof that another participant received it.
 | Focus after terminal state | The replacement room-gone, invalid-invite, or removed screen exposes its heading and primary next action without hidden controls remaining active |
 | Reduced motion | With `prefers-reduced-motion: reduce`, no essential state depends on animation and scrolling remains usable |
 | Zoom and reflow | At 200% zoom and a 320 CSS pixel viewport, controls do not overlap and message/file actions remain reachable |
+| Duration controls | In English and Spanish, each amount/unit field announces message or room policy; each Indefinite checkbox includes its policy name. Set 23 hours, enable Indefinite, then disable it: fields are disabled while enabled and restore 23 hours afterward |
 | Color and text | Connected, failed, expired, and removed states retain text labels and do not rely on color alone |
 
 ## Release record
