@@ -35,6 +35,8 @@ local display only; it is not proof that another participant received it.
 | --- | --- |
 | Keyboard only | Create, invite, write, attach, download, remove, and destroy actions are reachable in a logical order with visible focus |
 | Screen reader | Connection changes use a polite live region; errors use `role="alert"`; the conversation uses `role="log"` and announces additions |
+| Spanish page language | With Spanish first in browser language preferences, landing and room routes declare `html lang="es"`; English marketing articles still declare `html lang="en"` |
+| English fallback language | With English or an unsupported browser language, localized routes declare `html lang="en"`; a render-error fallback declares `lang="en"` even in a Spanish browser |
 | Focus after terminal state | The replacement room-gone, invalid-invite, or removed screen exposes its heading and primary next action without hidden controls remaining active |
 | Reduced motion | With `prefers-reduced-motion: reduce`, no essential state depends on animation and scrolling remains usable |
 | Zoom and reflow | At 200% zoom and a 320 CSS pixel viewport, controls do not overlap and message/file actions remain reachable |
