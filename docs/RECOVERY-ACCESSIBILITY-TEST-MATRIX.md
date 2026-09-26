@@ -8,7 +8,9 @@ local display only; it is not proof that another participant received it.
 
 | Area | Expected result | Gate |
 | --- | --- | --- |
+| Composer keyboard | Plain Enter submits; IME confirmation and modified Enter retain browser behavior | `tests/composer.test.ts` |
 | Reconnect backoff | Attempts wait 0.5, 1, 2, 4, and 8 seconds, then stop | `tests/recovery-state.test.ts` |
+| Metadata recovery | Network errors, HTTP 408, and HTTP 5xx share the socket reconnect budget; missing rooms remain terminal; canceled retries do not run | `tests/reconnect-metadata.test.ts` |
 | Replay after refresh | A verified event ID remains rejected after the guard is reconstructed | `tests/recovery-state.test.ts` and `npm run check:message-protocol` |
 | Corrupt or blocked storage | The tab keeps in-memory protection and does not crash | `tests/recovery-state.test.ts` |
 | Sender and room binding | Changed sender, room, target, payload, or signature fails verification | `npm run check:message-protocol` |
@@ -21,6 +23,8 @@ local display only; it is not proof that another participant received it.
 | --- | --- | --- |
 | Background and foreground | Join on mobile, background for 30 seconds, return | Status announces reconnect if needed; sending stays disabled until the current room key is ready |
 | Offline and online | Disable networking, attempt a send, restore networking | No false delivery claim; bounded reconnect begins; a later send works after `Connected` returns |
+| Metadata unavailable during recovery | Drop the socket, fail the next room metadata fetch, return HTTP 503 once, then restore the endpoint before retries run out | Retries continue through metadata failures; 503 never shows `Room not found`; admission resets the retry budget |
+| Initial invite while offline | Open a synthetic invite while offline and keep networking disabled through the five retries | The invite screen announces retry status and ultimately shows disconnected/error text instead of silently checking forever; reload after restoring connectivity to try again |
 | Wi-Fi to cellular | Change networks during an open room | At most one active session remains; membership changes rotate the room key; status settles at `Connected` |
 | Repeated flaps | Toggle offline/online six times | Backoff remains bounded; UI does not claim delivery for unsent content; no reconnect storm continues after the fifth failed attempt |
 | Expiry while reconnecting | Disconnect until the room idle or maximum deadline passes, then reconnect | Closed-room screen is shown and replay, identity, and key state for the ended room is cleared |
@@ -33,8 +37,11 @@ local display only; it is not proof that another participant received it.
 
 | Check | Pass condition |
 | --- | --- |
+| IME and multiline composition | With a Japanese or Chinese IME, Enter confirms a candidate without sending; Shift+Enter inserts a newline; plain Enter after composition sends |
 | Keyboard only | Create, invite, write, attach, download, remove, and destroy actions are reachable in a logical order with visible focus |
 | Screen reader | Connection changes use a polite live region; errors use `role="alert"`; the conversation uses `role="log"` and announces additions |
+| Spanish page language | With Spanish first in browser language preferences, landing and room routes declare `html lang="es"`; English marketing articles still declare `html lang="en"` |
+| English fallback language | With English or an unsupported browser language, localized routes declare `html lang="en"`; a render-error fallback declares `lang="en"` even in a Spanish browser |
 | Focus after terminal state | The replacement room-gone, invalid-invite, or removed screen exposes its heading and primary next action without hidden controls remaining active |
 | Reduced motion | With `prefers-reduced-motion: reduce`, no essential state depends on animation and scrolling remains usable |
 | Zoom and reflow | At 200% zoom and a 320 CSS pixel viewport, controls do not overlap and message/file actions remain reachable |

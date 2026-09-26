@@ -43,10 +43,12 @@ import {
 import { startTransition, useEffect, useRef, useState, type CSSProperties } from "react";
 import { recordGrowthEvent, resolveExternalAcquisitionSource } from "./growth";
 import { MarketingPage, type MarketingSlug } from "./MarketingPage";
-import { t } from "./localization";
+import { locale, t } from "./localization";
 import { InvalidMessageEnvelopeError, receiveTextMessage } from "./message-receive";
 import { ReplayGuard } from "./replay";
-import { reconnectDelayMs } from "./reconnect";
+import { handleComposerKeyDown } from "./composer";
+import { ReconnectScheduler } from "./reconnect";
+import { loadRoomMetadata, RoomMetadataError } from "./room-metadata";
 
 type View = "landing" | "marketing" | "room";
 
@@ -462,14 +464,6 @@ async function createRoom(body: CreateRoomRequest): Promise<CreateRoomResponse> 
   return response.json();
 }
 
-async function loadRoom(roomId: string): Promise<RoomMetadata> {
-  const response = await fetch(`/api/rooms/${roomId}`);
-  if (!response.ok) {
-    throw new Error(t("roomNotFoundError"));
-  }
-  return response.json();
-}
-
 async function destroyRoom(roomId: string, creatorToken: string): Promise<RoomMetadata> {
   const response = await fetch(`/api/rooms/${roomId}/destroy`, {
     method: "POST",
@@ -744,13 +738,14 @@ function FileCard({ file, onDownload }: { file: UiFile; onDownload: () => void }
   );
 }
 
-function InviteCheckingScreen() {
+function InviteCheckingScreen({ connection, error }: { connection: string; error: string | null }) {
   return (
     <main className="room-shell room-shell-centered">
       <section className="access-screen" aria-live="polite">
         <p className="eyebrow">elm chat</p>
         <h1 className="access-title">{t("checkingInvite")}</h1>
-        <p className="access-copy">{t("verifyingInvite")}</p>
+        <p className="access-copy">{error ? connection : t("verifyingInvite")}</p>
+        {error ? <p className="error-text" role="alert">{error}</p> : <p>{connection}</p>}
         <MakeYourOwnCallout />
       </section>
     </main>
@@ -781,6 +776,14 @@ function RoomGoneScreen({ fromInvite, reason }: { fromInvite: boolean; reason?: 
 
 export function App() {
   const route = roomPathname();
+  useEffect(() => {
+    const previousLanguage = document.documentElement.lang;
+    // Marketing articles are English; the landing and room UI use the catalog locale.
+    document.documentElement.lang = route.view === "marketing" ? "en" : locale;
+    return () => {
+      document.documentElement.lang = previousLanguage;
+    };
+  }, [route.view]);
   if (route.view === "room" && route.roomId) {
     return <RoomPage roomId={route.roomId} />;
   }
@@ -1213,8 +1216,6 @@ function RoomPage({ roomId }: { roomId: string }) {
   });
   const creatorToken = storedCreatorToken;
   const socketRef = useRef<WebSocket | null>(null);
-  const reconnectTimerRef = useRef<number | null>(null);
-  const reconnectAttemptRef = useRef(0);
   const roomKeyRef = useRef<CryptoKey | null>(null);
   const roomKeysRef = useRef(new Map<number, CryptoKey>());
   const keyEpochRef = useRef(1);
@@ -1572,16 +1573,22 @@ function RoomPage({ roomId }: { roomId: string }) {
 
     let active = true;
     let reconnectAllowed = true;
+    const reconnect = new ReconnectScheduler(
+      () => active && reconnectAllowed &&
+        (roomStatusRef.current === null || roomStatusRef.current === "open"),
+      () => { void bootstrap(); },
+      (delay) => setConnection(t("reconnecting", { seconds: Math.ceil(delay / 1000) }))
+    );
     const tick = window.setInterval(() => setNow(Date.now()), 1000);
 
     async function bootstrap() {
       try {
         const [metadata, key, identity] = await Promise.all([
-          loadRoom(roomId),
+          loadRoomMetadata(roomId),
           deriveRoomKey(roomSecret),
           loadIdentityKeyPair(roomId, sessionId)
         ]);
-        if (!active) {
+        if (!active || !reconnectAllowed) {
           return;
         }
         roomKeyRef.current = key;
@@ -1619,6 +1626,7 @@ function RoomPage({ roomId }: { roomId: string }) {
         });
 
         socket.addEventListener("close", (closeEvent) => {
+          if (!active) return;
           joinedRef.current = false;
           if (isInviteGuest && closeEvent.code === 4403) {
             reconnectAllowed = false;
@@ -1640,19 +1648,7 @@ function RoomPage({ roomId }: { roomId: string }) {
             setReady(true);
             return;
           }
-          if (active && reconnectAllowed && roomStatusRef.current === "open") {
-            const attempt = reconnectAttemptRef.current;
-            const delay = reconnectDelayMs(attempt);
-            if (delay !== null) {
-              reconnectAttemptRef.current = attempt + 1;
-              setConnection(t("reconnecting", { seconds: Math.ceil(delay / 1000) }));
-              reconnectTimerRef.current = window.setTimeout(() => {
-                reconnectTimerRef.current = null;
-                void bootstrap();
-              }, delay);
-              return;
-            }
-          }
+          if (reconnect.schedule()) return;
           setConnection(roomStatusRef.current === "open" ? t("disconnected") : t("closed"));
         });
 
@@ -1664,7 +1660,7 @@ function RoomPage({ roomId }: { roomId: string }) {
           const payload = JSON.parse(String(event.data)) as ServerEvent;
           if (payload.type === "joined") {
             joinedRef.current = true;
-            reconnectAttemptRef.current = 0;
+            reconnect.reset();
             startTransition(() => {
               setInviteAccess("granted");
               setRoom(payload.room);
@@ -1823,13 +1819,20 @@ function RoomPage({ roomId }: { roomId: string }) {
           }
         });
       } catch (cause) {
-        const message = cause instanceof Error ? cause.message : t("failedJoinRoom");
-        if (message === t("roomNotFoundError")) {
+        if (!active || !reconnectAllowed) return;
+        if (cause instanceof RoomMetadataError && cause.kind === "missing") {
+          reconnectAllowed = false;
+          reconnect.cancel();
           setNotFound(true);
           setReady(true);
           return;
         }
-        setError(message);
+        if (cause instanceof RoomMetadataError && cause.kind === "temporary" && reconnect.schedule()) {
+          return;
+        }
+        setConnection(t("disconnected"));
+        setError(cause instanceof RoomMetadataError ? t("failedJoinRoom") :
+          cause instanceof Error ? cause.message : t("failedJoinRoom"));
       }
     }
 
@@ -2079,10 +2082,7 @@ function RoomPage({ roomId }: { roomId: string }) {
       active = false;
       reconnectAllowed = false;
       window.clearInterval(tick);
-      if (reconnectTimerRef.current !== null) {
-        window.clearTimeout(reconnectTimerRef.current);
-        reconnectTimerRef.current = null;
-      }
+      reconnect.cancel();
       socketRef.current?.close();
       for (const transfer of incomingFilesRef.current.values()) {
         if (transfer.timeoutId) window.clearTimeout(transfer.timeoutId);
@@ -2244,24 +2244,6 @@ function RoomPage({ roomId }: { roomId: string }) {
     } else {
       messageRef.current.set(envelope.messageId, sentEvent);
     }
-  }
-
-  function handleComposerKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key !== "Enter") {
-      return;
-    }
-
-    if (event.ctrlKey || event.metaKey) {
-      return;
-    }
-
-    event.preventDefault();
-    const form = event.currentTarget.form;
-    if (!form) {
-      return;
-    }
-
-    form.requestSubmit();
   }
 
   async function handleCopyLink() {
@@ -2456,7 +2438,7 @@ function RoomPage({ roomId }: { roomId: string }) {
   }
 
   if (isInviteGuest && (inviteAccess !== "granted" || !room || !ready)) {
-    return <InviteCheckingScreen />;
+    return <InviteCheckingScreen connection={connection} error={error} />;
   }
 
   return (

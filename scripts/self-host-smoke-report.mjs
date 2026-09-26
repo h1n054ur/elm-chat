@@ -2,24 +2,67 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const args = new Map();
-for (let index = 2; index < process.argv.length; index += 1) {
-  const arg = process.argv[index];
-  if (!arg.startsWith("--")) {
-    continue;
+const usage = `Usage: npm run self-host:smoke-report -- [options]
+
+  --path manual|deploy-button  Deployment path (default: manual)
+  --origin URL                 Optional deployment origin (redacted by default)
+  --public-origin [true|false] Publish the supplied origin (default: false)
+  --help                      Show this help
+
+Options accept either --name value or --name=value.
+`;
+
+function parseArgs(argv) {
+  const args = new Map();
+  const allowed = new Set(["path", "origin", "public-origin", "help"]);
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (!arg.startsWith("--")) throw new Error("Unexpected positional argument");
+    const separator = arg.indexOf("=");
+    const key = arg.slice(2, separator === -1 ? undefined : separator);
+    if (!allowed.has(key)) throw new Error("Unknown option; see --help for supported options");
+    if (args.has(key)) throw new Error(`Duplicate --${key} option`);
+    let value = separator === -1 ? undefined : arg.slice(separator + 1);
+    if (key === "help") {
+      if (value !== undefined) throw new Error("--help does not take a value");
+      args.set(key, "true");
+      continue;
+    }
+    if (value === undefined) {
+      const next = argv[index + 1];
+      if (next !== undefined && !next.startsWith("--")) {
+        value = argv[++index];
+      } else if (key === "public-origin") {
+        value = "true";
+      }
+    }
+    if (value === undefined || value.trim() === "") {
+      throw new Error(`--${key} requires a value`);
+    }
+    args.set(key, value);
   }
-  const [key, inlineValue] = arg.slice(2).split("=", 2);
-  const nextValue = process.argv[index + 1];
-  const value =
-    inlineValue ??
-    (nextValue && !nextValue.startsWith("--") ? (index += 1, nextValue) : "true");
-  args.set(key, value);
+  const path = args.get("path") ?? "manual";
+  if (path !== "manual" && path !== "deploy-button") {
+    throw new Error("--path must be manual or deploy-button");
+  }
+  if (args.has("public-origin") && !["true", "false"].includes(args.get("public-origin"))) {
+    throw new Error("--public-origin must be true or false");
+  }
+  return args;
 }
 
-const path = args.get("path") ?? "manual";
-if (path !== "manual" && path !== "deploy-button") {
-  throw new Error("--path must be manual or deploy-button");
+let args;
+try {
+  args = parseArgs(process.argv.slice(2));
+} catch (error) {
+  console.error(`Smoke report: ${error.message}. Run with --help for usage.`);
+  process.exit(1);
 }
+if (args.has("help")) {
+  console.log(usage);
+  process.exit(0);
+}
+const path = args.get("path") ?? "manual";
 
 const origin = args.get("origin") ?? "";
 const publicOrigin = args.get("public-origin") === "true";

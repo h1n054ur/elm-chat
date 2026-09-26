@@ -29,12 +29,12 @@ collects the live demo, architecture, threat model, and current newcomer tasks.
 
 ## Development setup
 
-Prerequisites: Node.js + npm, and a Cloudflare account only if you want to deploy.
+Prerequisites: Node.js 24 + npm (matching CI), and a Cloudflare account only if you want to deploy.
 
 ```bash
 git clone https://github.com/shawnbure/elm-chat.git
 cd elm-chat
-npm install
+npm ci
 npm run build   # once, creates apps/web/dist which wrangler dev expects
 npm run dev     # runs the Worker + Vite dev server together
 ```
@@ -43,8 +43,24 @@ Open `http://localhost:3000`, create a room, then open the invite link in a seco
 
 ## Pull request checklist
 
+CI runs the following checks on pull requests and pushes to `main`. Run them
+locally in this order; the Workers tests need the generated `apps/web/dist` assets:
+
+```bash
+npm run typecheck
+npm run build
+npm test
+```
+
+The build includes the repository's configuration, privacy, protocol, community
+feed, and security-copy checks, plus a Worker deployment dry run. These checks
+use no deployment credentials and do not deploy the app. Automated checks do
+not replace the real-device [recovery and accessibility matrix](docs/RECOVERY-ACCESSIBILITY-TEST-MATRIX.md)
+or an independent security review.
+
 - [ ] `npm run typecheck` passes.
 - [ ] `npm run build` succeeds.
+- [ ] `npm test` passes.
 - [ ] The PR is scoped to a single concern.
 - [ ] The description states any change to what the server can see, log, or retain.
 - [ ] New user-facing strings are clear and calm (this app is often used under stress).

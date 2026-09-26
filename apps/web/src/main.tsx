@@ -21,7 +21,7 @@ class RootBoundary extends React.Component<React.PropsWithChildren, RootBoundary
   render() {
     if (this.state.error) {
       return (
-        <main className="room-shell room-shell-centered">
+        <main className="room-shell room-shell-centered" lang="en">
           <section className="access-screen" aria-live="polite">
             <p className="eyebrow">elm chat</p>
             <h1 className="access-title">Could not open this session</h1>
