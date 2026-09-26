@@ -43,7 +43,7 @@ import {
 import { startTransition, useEffect, useRef, useState, type CSSProperties } from "react";
 import { recordGrowthEvent, resolveExternalAcquisitionSource } from "./growth";
 import { MarketingPage, type MarketingSlug } from "./MarketingPage";
-import { t } from "./localization";
+import { locale, t } from "./localization";
 import { InvalidMessageEnvelopeError, receiveTextMessage } from "./message-receive";
 import { ReplayGuard } from "./replay";
 import { reconnectDelayMs } from "./reconnect";
@@ -781,6 +781,14 @@ function RoomGoneScreen({ fromInvite, reason }: { fromInvite: boolean; reason?: 
 
 export function App() {
   const route = roomPathname();
+  useEffect(() => {
+    const previousLanguage = document.documentElement.lang;
+    // Marketing articles are English; the landing and room UI use the catalog locale.
+    document.documentElement.lang = route.view === "marketing" ? "en" : locale;
+    return () => {
+      document.documentElement.lang = previousLanguage;
+    };
+  }, [route.view]);
   if (route.view === "room" && route.roomId) {
     return <RoomPage roomId={route.roomId} />;
   }
