@@ -40,6 +40,7 @@ local display only; it is not proof that another participant received it.
 | Check | Pass condition |
 | --- | --- |
 | Keyboard only | Create, invite, write, attach, download, remove, and destroy actions are reachable in a logical order with visible focus |
+| Manual retry focus | Enter/Space on Retry moves focus to connection status; guest-to-room and terminal replacements retain that deliberate focus. Tabbing away cancels the transfer. Automatic retry never moves focus. |
 | Screen reader | Connection changes use a polite live region; errors use `role="alert"`; the conversation uses `role="log"` and announces additions |
 | Focus after terminal state | The replacement room-gone, invalid-invite, or removed screen exposes its heading and primary next action without hidden controls remaining active |
 | Reduced motion | With `prefers-reduced-motion: reduce`, no essential state depends on animation and scrolling remains usable |
