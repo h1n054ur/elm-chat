@@ -68,6 +68,95 @@ describe("room metadata recovery classification", () => {
 });
 
 describe("shared reconnect scheduling", () => {
+  function exhaust(scheduler: ReconnectScheduler) {
+    for (const delay of [500, 1000, 2000, 4000, 8000]) {
+      expect(scheduler.schedule()).toBe(true);
+      vi.advanceTimersByTime(delay);
+    }
+    expect(scheduler.schedule()).toBe(false);
+  }
+
+  it("offers manual retry only after the last automatic attempt has failed", () => {
+    vi.useFakeTimers();
+    const retry = vi.fn();
+    const scheduler = new ReconnectScheduler(() => true, retry, vi.fn());
+    expect(scheduler.canRetry).toBe(false);
+    expect(scheduler.retryNow()).toBe(false);
+    for (const delay of [500, 1000, 2000, 4000, 8000]) {
+      scheduler.schedule();
+      expect(scheduler.canRetry).toBe(false);
+      expect(scheduler.retryNow()).toBe(false);
+      vi.advanceTimersByTime(delay);
+      // A timer firing starts an attempt; it does not mean that attempt failed.
+      expect(scheduler.canRetry).toBe(false);
+      expect(scheduler.retryNow()).toBe(false);
+    }
+    expect(retry).toHaveBeenCalledTimes(5);
+    expect(scheduler.schedule()).toBe(false);
+    expect(scheduler.canRetry).toBe(true);
+  });
+
+  it("starts one immediate manual attempt and a fresh bounded automatic cycle", () => {
+    vi.useFakeTimers();
+    const retry = vi.fn();
+    const scheduled = vi.fn();
+    const scheduler = new ReconnectScheduler(() => true, retry, scheduled);
+    exhaust(scheduler);
+    expect(scheduler.retryNow()).toBe(true);
+    expect(retry).toHaveBeenCalledTimes(6);
+    expect(scheduler.canRetry).toBe(false);
+    expect(scheduler.retryNow()).toBe(false);
+    expect(retry).toHaveBeenCalledTimes(6);
+    expect(vi.getTimerCount()).toBe(0);
+    // The manually started attempt failed, so automatic recovery resumes.
+    exhaust(scheduler);
+    expect(retry).toHaveBeenCalledTimes(11);
+    expect(scheduled.mock.calls.map(([delay]) => delay)).toEqual([
+      500, 1000, 2000, 4000, 8000, 500, 1000, 2000, 4000, 8000
+    ]);
+    expect(scheduler.canRetry).toBe(true);
+  });
+
+  it("rechecks terminal eligibility before a stale manual retry action", () => {
+    vi.useFakeTimers();
+    let allowed = true;
+    const retry = vi.fn();
+    const scheduler = new ReconnectScheduler(() => allowed, retry, vi.fn());
+    exhaust(scheduler);
+    expect(scheduler.canRetry).toBe(true);
+    allowed = false;
+    expect(scheduler.canRetry).toBe(false);
+    expect(scheduler.retryNow()).toBe(false);
+    expect(scheduler.schedule()).toBe(false);
+    expect(retry).toHaveBeenCalledTimes(5);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each(["reset", "cancel"] as const)("clears manual eligibility on %s", (action) => {
+    vi.useFakeTimers();
+    const retry = vi.fn();
+    const scheduler = new ReconnectScheduler(() => true, retry, vi.fn());
+    exhaust(scheduler);
+    expect(scheduler.canRetry).toBe(true);
+    scheduler[action]();
+    expect(scheduler.canRetry).toBe(false);
+    expect(scheduler.retryNow()).toBe(false);
+    expect(retry).toHaveBeenCalledTimes(5);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("does not offer manual retry when scheduling was denied before exhaustion", () => {
+    vi.useFakeTimers();
+    let allowed = false;
+    const retry = vi.fn();
+    const scheduler = new ReconnectScheduler(() => allowed, retry, vi.fn());
+    expect(scheduler.schedule()).toBe(false);
+    allowed = true;
+    expect(scheduler.canRetry).toBe(false);
+    expect(scheduler.retryNow()).toBe(false);
+    expect(retry).not.toHaveBeenCalled();
+  });
+
   it("keeps one bounded retry budget across metadata failures and socket closes", async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn()

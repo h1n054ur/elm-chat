@@ -11,6 +11,7 @@ export function reconnectDelayMs(attempt: number): number | null {
 export class ReconnectScheduler {
   private attempt = 0;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  private exhausted = false;
 
   constructor(
     private readonly allowed: () => boolean,
@@ -22,13 +23,28 @@ export class ReconnectScheduler {
     if (!this.allowed()) return false;
     if (this.timer !== null) return true;
     const delay = reconnectDelayMs(this.attempt);
-    if (delay === null) return false;
+    if (delay === null) {
+      this.exhausted = true;
+      return false;
+    }
     this.attempt += 1;
     this.scheduled(delay);
     this.timer = setTimeout(() => {
       this.timer = null;
       if (this.allowed()) this.retry();
     }, delay);
+    return true;
+  }
+
+  get canRetry(): boolean {
+    return this.exhausted && this.allowed();
+  }
+
+  retryNow(): boolean {
+    if (!this.canRetry) return false;
+    // Consume eligibility before invoking the callback, including same-tick clicks.
+    this.reset();
+    this.retry();
     return true;
   }
 
@@ -40,5 +56,6 @@ export class ReconnectScheduler {
   cancel(): void {
     if (this.timer !== null) clearTimeout(this.timer);
     this.timer = null;
+    this.exhausted = false;
   }
 }
