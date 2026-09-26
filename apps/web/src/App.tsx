@@ -49,6 +49,7 @@ import { ReplayGuard } from "./replay";
 import { handleComposerKeyDown } from "./composer";
 import { ReconnectScheduler } from "./reconnect";
 import { loadRoomMetadata, RoomMetadataError } from "./room-metadata";
+import { useConversationScroll } from "./use-conversation-scroll";
 
 type View = "landing" | "marketing" | "room";
 
@@ -1246,7 +1247,8 @@ function RoomPage({ roomId }: { roomId: string }) {
   // by the connection effect) can distinguish a live-room drop from an
   // already-closed room without reading a stale `room` value.
   const roomStatusRef = useRef<RoomMetadata["status"] | null>(null);
-  const chatLogRef = useRef<HTMLElement | null>(null);
+  const { chatLogRef, awayFromLatest, newMessageCount, jumpToLatest, handleConversationScroll } =
+    useConversationScroll(messages, ready);
   const messageRef = useRef(new Map<string, AuthenticatedPeerEvent>());
   const replayGuardRef = useRef<ReplayGuard | null>(null);
   const eventReplayGuardRef = useRef<ReplayGuard | null>(null);
@@ -1529,6 +1531,7 @@ function RoomPage({ roomId }: { roomId: string }) {
       outgoingFileHashesRef.current.set(fileId, sha256);
       outgoingFileEpochsRef.current.set(fileId, keyEpochRef.current);
       setError(null);
+      jumpToLatest();
       startTransition(() => {
         setMessages((current) =>
           upsertMessage(current, {
@@ -2129,16 +2132,6 @@ function RoomPage({ roomId }: { roomId: string }) {
   }, [destroyFeedback]);
 
   useEffect(() => {
-    const chatLog = chatLogRef.current;
-    if (!chatLog) {
-      return;
-    }
-    window.requestAnimationFrame(() => {
-      chatLog.scrollTop = chatLog.scrollHeight;
-    });
-  }, [ready, messages.length, roomNotice]);
-
-  useEffect(() => {
     if (!ready || room?.status !== "open") {
       return;
     }
@@ -2232,6 +2225,7 @@ function RoomPage({ roomId }: { roomId: string }) {
       setError(t("replayLimit"));
       return;
     }
+    jumpToLatest();
     setDraft("");
     setError(null);
     startTransition(() => {
@@ -2630,7 +2624,7 @@ function RoomPage({ roomId }: { roomId: string }) {
       ) : null}
 
       <section className="chat-stage">
-        <section aria-label={t("conversationLog")} aria-live="polite" aria-relevant="additions" className="chat-log" ref={chatLogRef} role="log">
+        <section aria-label={t("conversationLog")} aria-live="polite" aria-relevant="additions" className="chat-log" ref={chatLogRef} role="log" tabIndex={0} onScroll={handleConversationScroll}>
         <div className="chat-thread">
           {!ready ? <p className="system-line">{t("deriving")}</p> : null}
           {messages.length === 0 && ready ? (
@@ -2664,6 +2658,18 @@ function RoomPage({ roomId }: { roomId: string }) {
           })}
         </div>
         </section>
+        {awayFromLatest ? (
+          <button
+            className="secondary-button jump-to-latest"
+            type="button"
+            onClick={() => {
+              jumpToLatest();
+              chatLogRef.current?.focus({ preventScroll: true });
+            }}
+          >
+            {newMessageCount > 0 ? t("newMessagesJump", { count: newMessageCount }) : t("jumpToLatest")}
+          </button>
+        ) : null}
       </section>
 
       <form className="composer" onSubmit={handleSend}>
