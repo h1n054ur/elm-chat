@@ -35,6 +35,21 @@ describe("room metadata recovery classification", () => {
     await expect(loadRoomMetadata("test-room")).rejects.toMatchObject({ kind: "temporary" });
   });
 
+  it("retries a body transport failure after successful response headers", async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{"roomId":'));
+      },
+      pull(controller) {
+        controller.error(new TypeError("Connection lost while reading response"));
+      }
+    });
+    const response = new Response(body, { status: 200 });
+    expect(response.ok).toBe(true);
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(response));
+    await expect(loadRoomMetadata("test-room")).rejects.toMatchObject({ kind: "temporary" });
+  });
+
   it.each([
     [404, "missing"], [410, "missing"],
     [408, "temporary"], [500, "temporary"], [502, "temporary"], [503, "temporary"], [504, "temporary"],
