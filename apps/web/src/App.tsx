@@ -708,7 +708,8 @@ function GithubMark({ size = 16 }: { size?: number }) {
 }
 
 function FileCard({ file, onDownload }: { file: UiFile; onDownload: () => void }) {
-  const percent = Math.round((file.progress ?? 0) * 100);
+  const progress = file.progress ?? 0;
+  const percent = Number.isFinite(progress) ? Math.round(Math.min(1, Math.max(0, progress)) * 100) : 0;
   return (
     <div className="file-card">
       <div className="file-card-head">
@@ -723,18 +724,26 @@ function FileCard({ file, onDownload }: { file: UiFile; onDownload: () => void }
       {file.outgoing ? (
         <span className="file-status">{t("fileShared")}</span>
       ) : file.state === "offered" ? (
-        <button className="secondary-button file-action" onClick={onDownload} type="button">
+        <button aria-label={t("downloadFileLabel", { name: file.name })} className="secondary-button file-action" onClick={onDownload} type="button">
           {t("download")}
         </button>
       ) : file.state === "requesting" || file.state === "transferring" ? (
-        <div className="file-progress">
+        <div
+          aria-label={t("fileProgressLabel", { name: file.name })}
+          aria-live="off"
+          aria-valuemax={100}
+          aria-valuemin={0}
+          aria-valuenow={percent}
+          className="file-progress"
+          role="progressbar"
+        >
           <div className="file-progress-track">
             <div className="file-progress-bar" style={{ width: `${percent}%` }} />
           </div>
           <span className="file-progress-label">{percent}%</span>
         </div>
       ) : file.state === "ready" && file.url ? (
-        <a className="secondary-button file-action" download={file.name} href={file.url}>
+        <a aria-label={t("saveFileLabel", { name: file.name })} className="secondary-button file-action" download={file.name} href={file.url}>
           {t("saveFile")}
         </a>
       ) : file.state === "error" ? (
