@@ -40,7 +40,7 @@ import {
   type RoomMetadata,
   type ServerEvent,
 } from "@elm-chat/shared";
-import { startTransition, useEffect, useRef, useState, type CSSProperties } from "react";
+import { startTransition, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import { recordGrowthEvent, resolveExternalAcquisitionSource } from "./growth";
 import { MarketingPage, type MarketingSlug } from "./MarketingPage";
 import { locale, t } from "./localization";
@@ -647,7 +647,9 @@ function MakeYourOwnCallout({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function InvalidInviteScreen({ reason }: { reason: InviteAccess }) {
+type RecoveryFocusTarget = { focusRef?: React.RefCallback<HTMLElement> };
+
+function InvalidInviteScreen({ reason, focusRef }: { reason: InviteAccess } & RecoveryFocusTarget) {
   const copy =
     reason === "claimed"
       ? t("inviteClaimed")
@@ -658,7 +660,7 @@ function InvalidInviteScreen({ reason }: { reason: InviteAccess }) {
     <main className="room-shell room-shell-centered">
       <section className="access-screen" aria-live="polite">
         <p className="eyebrow">elm chat</p>
-        <h1 className="access-title">{t("invalidLink")}</h1>
+        <h1 className="access-title" ref={focusRef} tabIndex={-1}>{t("invalidLink")}</h1>
         <p className="access-copy">{copy}</p>
         <a
           className="secondary-button access-home-link"
@@ -673,12 +675,12 @@ function InvalidInviteScreen({ reason }: { reason: InviteAccess }) {
   );
 }
 
-function RemovedFromRoomScreen() {
+function RemovedFromRoomScreen({ focusRef }: RecoveryFocusTarget) {
   return (
     <main className="room-shell room-shell-centered">
       <section className="access-screen" aria-live="polite">
         <p className="eyebrow">elm chat</p>
-        <h1 className="access-title">{t("removedTitle")}</h1>
+        <h1 className="access-title" ref={focusRef} tabIndex={-1}>{t("removedTitle")}</h1>
         <p className="access-copy">{t("removedCopy")}</p>
         <a
           className="secondary-button access-home-link"
@@ -747,18 +749,19 @@ function FileCard({ file, onDownload }: { file: UiFile; onDownload: () => void }
   );
 }
 
-function InviteCheckingScreen({ connection, error, onRetry }: {
+function InviteCheckingScreen({ connection, error, onRetry, focusRef }: {
   connection: string;
   error: string | null;
   onRetry?: () => void;
-}) {
+} & RecoveryFocusTarget) {
   return (
     <main className="room-shell room-shell-centered">
       <section className="access-screen" aria-live="polite">
         <p className="eyebrow">elm chat</p>
         <h1 className="access-title">{t("checkingInvite")}</h1>
-        <p className="access-copy">{error ? connection : t("verifyingInvite")}</p>
-        {error ? <p className="error-text" role="alert">{error}</p> : <p>{connection}</p>}
+        <p className="access-copy">{t("verifyingInvite")}</p>
+        <p ref={focusRef} tabIndex={-1}>{connection}</p>
+        {error ? <p className="error-text" role="alert">{error}</p> : null}
         {onRetry ? <button className="secondary-button" onClick={onRetry} type="button">{t("retryConnection")}</button> : null}
         <MakeYourOwnCallout />
       </section>
@@ -766,12 +769,12 @@ function InviteCheckingScreen({ connection, error, onRetry }: {
   );
 }
 
-function RoomGoneScreen({ fromInvite, reason }: { fromInvite: boolean; reason?: string }) {
+function RoomGoneScreen({ fromInvite, reason, focusRef }: { fromInvite: boolean; reason?: string } & RecoveryFocusTarget) {
   return (
     <main className="room-shell room-shell-centered">
       <section className="access-screen" aria-live="polite">
         <p className="eyebrow">elm chat</p>
-        <h1 className="access-title">{t("roomGone")}</h1>
+        <h1 className="access-title" ref={focusRef} tabIndex={-1}>{t("roomGone")}</h1>
         <p className="access-copy">
           {reason ?? t("roomGoneCopy")}
         </p>
@@ -1213,6 +1216,17 @@ function RoomPage({ roomId }: { roomId: string }) {
   const [canRetryConnection, setCanRetryConnection] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const retryConnectionRef = useRef<(() => void) | null>(null);
+  const retryFocusTargetRef = useRef<HTMLElement | null>(null);
+  const preserveRetryFocusRef = useRef(false);
+  const setRetryFocusTarget = useCallback((element: HTMLElement | null) => {
+    if (!element) {
+      // Follow a replacement view only while the manually focused status owns focus.
+      preserveRetryFocusRef.current = preserveRetryFocusRef.current &&
+        document.activeElement === retryFocusTargetRef.current;
+    }
+    retryFocusTargetRef.current = element;
+    if (element && preserveRetryFocusRef.current) element.focus();
+  }, []);
   const [keyReady, setKeyReady] = useState(false);
   const [presence, setPresence] = useState<PresenceSnapshot>({ count: 0, connectedSessionIds: [] });
   const [now, setNow] = useState(Date.now());
@@ -1617,6 +1631,9 @@ function RoomPage({ roomId }: { roomId: string }) {
     }
     retryConnectionRef.current = () => {
       if (!reconnect.canRetry) return;
+      const focusTarget = retryFocusTargetRef.current;
+      focusTarget?.focus({ preventScroll: true });
+      preserveRetryFocusRef.current = Boolean(focusTarget && document.activeElement === focusTarget);
       setCanRetryConnection(false);
       setConnectionError(null);
       setConnection(t("connecting"));
@@ -2462,11 +2479,11 @@ function RoomPage({ roomId }: { roomId: string }) {
   const isCreator = Boolean(creatorToken);
 
   if (removedFromRoom) {
-    return <RemovedFromRoomScreen />;
+    return <RemovedFromRoomScreen focusRef={setRetryFocusTarget} />;
   }
 
   if (inviteAccess === "invalid" || inviteAccess === "claimed" || inviteAccess === "used") {
-    return <InvalidInviteScreen reason={inviteAccess} />;
+    return <InvalidInviteScreen reason={inviteAccess} focusRef={setRetryFocusTarget} />;
   }
 
   if (notFound) {
@@ -2474,6 +2491,7 @@ function RoomPage({ roomId }: { roomId: string }) {
       <RoomGoneScreen
         fromInvite={isInviteGuest}
         reason={t("roomNotFound")}
+        focusRef={setRetryFocusTarget}
       />
     );
   }
@@ -2483,12 +2501,14 @@ function RoomPage({ roomId }: { roomId: string }) {
       <RoomGoneScreen
         fromInvite={isInviteGuest}
         reason={roomNotice ?? roomStateMessage(room.status)}
+        focusRef={setRetryFocusTarget}
       />
     );
   }
 
   if (isInviteGuest && (inviteAccess !== "granted" || !room || !ready)) {
     return <InviteCheckingScreen connection={connection} error={connectionError ?? error}
+      focusRef={setRetryFocusTarget}
       onRetry={canRetryConnection ? () => retryConnectionRef.current?.() : undefined} />;
   }
 
@@ -2503,7 +2523,7 @@ function RoomPage({ roomId }: { roomId: string }) {
           </p>
         </div>
         <div className="room-toolbar">
-          <div className="room-meta" aria-live="polite">
+          <div className="room-meta" aria-live="polite" ref={setRetryFocusTarget} tabIndex={-1}>
             <span>{connection}</span>
             <span>{t("present", { count: presentCount })}</span>
           </div>

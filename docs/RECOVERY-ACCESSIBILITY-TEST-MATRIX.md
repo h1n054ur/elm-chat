@@ -42,6 +42,7 @@ local display only; it is not proof that another participant received it.
 | --- | --- |
 | IME and multiline composition | With a Japanese or Chinese IME, Enter confirms a candidate without sending; Shift+Enter inserts a newline; plain Enter after composition sends |
 | Keyboard only | Create, invite, write, attach, download, remove, and destroy actions are reachable in a logical order with visible focus |
+| Manual retry focus | Enter/Space on Retry moves focus to connection status; guest-to-room and terminal replacements retain that deliberate focus. Tabbing away cancels the transfer. Automatic retry never moves focus. |
 | Screen reader | Connection changes use a polite live region; errors use `role="alert"`; the conversation uses `role="log"` and announces additions |
 | Spanish page language | With Spanish first in browser language preferences, landing and room routes declare `html lang="es"`; English marketing articles still declare `html lang="en"` |
 | English fallback language | With English or an unsupported browser language, localized routes declare `html lang="en"`; a render-error fallback declares `lang="en"` even in a Spanish browser |
