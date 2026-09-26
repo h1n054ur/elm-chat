@@ -358,8 +358,7 @@ function toggleIndefiniteDuration(
   if (checked) {
     return {
       ...current,
-      indefinite: true,
-      amount: ""
+      indefinite: true
     };
   }
 
@@ -950,9 +949,9 @@ function LandingPage() {
             {t("heroCopy")}
           </p>
           <div className="creation-panel">
-            <div className="setting-row">
+            <div className="setting-row" role="group" aria-labelledby="message-policy-label">
               <div>
-                <span className="setting-label">{t("messageVanish")}</span>
+                <span className="setting-label" id="message-policy-label">{t("messageVanish")}</span>
                 <p className="setting-note">
                   {formatSelectedDuration(
                     messageDuration.amount,
@@ -965,6 +964,7 @@ function LandingPage() {
                 className={`setting-controls ${messageDuration.indefinite ? "setting-controls-disabled" : ""}`}
               >
                 <input
+                  aria-label={t("messageDurationAmount")}
                   className="setting-input"
                   disabled={messageDuration.indefinite}
                   inputMode="numeric"
@@ -976,6 +976,7 @@ function LandingPage() {
                   value={messageDuration.indefinite ? "" : messageDuration.amount}
                 />
                 <select
+                  aria-label={t("messageDurationUnit")}
                   className="setting-select"
                   disabled={messageDuration.indefinite}
                   onChange={(event) =>
@@ -992,19 +993,20 @@ function LandingPage() {
                 </select>
                 <label className="toggle-pill">
                   <input
+                    aria-labelledby="message-policy-label message-indefinite-label"
                     checked={messageDuration.indefinite}
                     onChange={(event) =>
                       updateDurationIndefinite("message", event.target.checked)
                     }
                     type="checkbox"
                   />
-                  <span>{t("indefinite")}</span>
+                  <span id="message-indefinite-label">{t("indefinite")}</span>
                 </label>
               </div>
             </div>
-            <div className="setting-row">
+            <div className="setting-row" role="group" aria-labelledby="room-policy-label">
               <div>
-                <span className="setting-label">{t("roomSelfDestruct")}</span>
+                <span className="setting-label" id="room-policy-label">{t("roomSelfDestruct")}</span>
                 <p className="setting-note">
                   {roomDuration.indefinite
                     ? t("onlyManualDestroy")
@@ -1015,6 +1017,7 @@ function LandingPage() {
                 className={`setting-controls ${roomDuration.indefinite ? "setting-controls-disabled" : ""}`}
               >
                 <input
+                  aria-label={t("roomDurationAmount")}
                   className="setting-input"
                   disabled={roomDuration.indefinite}
                   inputMode="numeric"
@@ -1026,6 +1029,7 @@ function LandingPage() {
                   value={roomDuration.indefinite ? "" : roomDuration.amount}
                 />
                 <select
+                  aria-label={t("roomDurationUnit")}
                   className="setting-select"
                   disabled={roomDuration.indefinite}
                   onChange={(event) =>
@@ -1042,13 +1046,14 @@ function LandingPage() {
                 </select>
                 <label className="toggle-pill">
                   <input
+                    aria-labelledby="room-policy-label room-indefinite-label"
                     checked={roomDuration.indefinite}
                     onChange={(event) =>
                       updateDurationIndefinite("room", event.target.checked)
                     }
                     type="checkbox"
                   />
-                  <span>{t("indefinite")}</span>
+                  <span id="room-indefinite-label">{t("indefinite")}</span>
                 </label>
               </div>
             </div>
