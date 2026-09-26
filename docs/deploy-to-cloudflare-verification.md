@@ -53,4 +53,6 @@ npm run self-host:smoke-report -- --path manual
 
 Use `--path deploy-button` for the one-click flow. Add `--origin https://example.workers.dev --public-origin true` only if the tester wants the generated origin to appear in the report. Otherwise, leave origins redacted.
 
+Run `npm run self-host:smoke-report -- --help` for all options. Both `--path deploy-button` and `--path=deploy-button` are supported. Unknown, repeated, missing, or invalid options exit with an error instead of generating a potentially mislabeled report. `--public-origin` without a value is equivalent to `--public-origin true`; use `--public-origin false` to retain redaction.
+
 The report separates deployment, two-browser lifecycle, post-destroy reconnect, and known-limit review. A pass in one category does not imply the others passed, and no smoke test should be described as a security audit.

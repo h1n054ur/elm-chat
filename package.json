@@ -9,7 +9,8 @@
     "durable-objects/*"
   ],
   "scripts": {
-    "test": "vitest run",
+    "test": "npm run test:scripts && vitest run",
+    "test:scripts": "node --test scripts/tests/*.test.mjs",
     "build": "npm run check:wrangler-configs && npm run check:growth-privacy && npm run check:message-protocol && npm run check:community-feed && npm run build --workspace @elm-chat/web && npm run check:security-copy && npm run build --workspace @elm-chat/api",
     "check:wrangler-configs": "node scripts/check-wrangler-configs.mjs",
     "check:growth-privacy": "node scripts/check-growth-privacy.mjs",
