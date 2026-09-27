@@ -66,6 +66,9 @@ or an independent security review.
 - [ ] New user-facing strings are clear and calm (this app is often used under stress).
 - [ ] No secrets, keys, or `.env` files committed.
 
+For a repeatable two-browser check against a real local Worker and relay, see
+[the local relay smoke instructions](docs/LOCAL-RELAY-SMOKE.md).
+
 ## Reporting security issues
 
 **Do not open a public issue for a vulnerability.** Follow the process in [SECURITY.md](SECURITY.md).
