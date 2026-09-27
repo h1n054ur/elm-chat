@@ -29,3 +29,15 @@ Development verification used the actual App in headless desktop Chrome, with
 synthetic HTTP/WebSocket/clipboard/share responses. It covered the cases above
 in English and Spanish; no real room capabilities were published. Real mobile
 native-share sheets and screen readers remain manual release checks.
+
+The synthetic browser suite is checked in at `scripts/check-invite-fallback-browser.mjs`.
+Start the web dev server, then run it in an environment with Playwright available:
+
+```sh
+TEST_ORIGIN=http://127.0.0.1:3000 node scripts/check-invite-fallback-browser.mjs
+```
+
+`PLAYWRIGHT_MODULE` optionally points at an installed Playwright module and
+`CHROME_PATH` at an existing Chrome executable. No production endpoint is used.
+The suite includes pending Copy/Share followed by Remove, testing late success,
+failure, and share cancellation against the newer removal notice in both locales.

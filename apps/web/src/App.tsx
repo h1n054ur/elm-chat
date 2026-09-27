@@ -1214,6 +1214,8 @@ function RoomPage({ roomId }: { roomId: string }) {
   const [manualInvite, setManualInvite] = useState<{ token: string; trigger: HTMLButtonElement; focusOwner: Element | null } | null>(null);
   const inviteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const inviteActionRef = useRef(0);
+  const currentInvitesRef = useRef(invites);
+  currentInvitesRef.current = invites;
   const [draft, setDraft] = useState("");
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1390,6 +1392,7 @@ function RoomPage({ roomId }: { roomId: string }) {
     }
     try {
       const nextInvites = await listInvites(roomId, creatorToken);
+      currentInvitesRef.current = nextInvites;
       setInvites(nextInvites);
     } catch {
       // Keep the last known invite state if the refresh fails.
@@ -2335,18 +2338,28 @@ function RoomPage({ roomId }: { roomId: string }) {
     recordGrowthEvent("invite_share_handoff");
   }
 
+  function inviteActionIsCurrent(action: number, token: string) {
+    return action === inviteActionRef.current && roomStatusRef.current === "open" &&
+      canShareInvite(currentInvitesRef.current.find((invite) => invite.token === token), Date.now());
+  }
+
   async function handleShareInvite(event: React.MouseEvent<HTMLButtonElement>) {
     const trigger = event.currentTarget;
     const focusOwner = document.activeElement;
     const action = ++inviteActionRef.current;
     setManualInvite(null);
+    setRoomNotice(null);
+    setError(null);
     if (!creatorToken) {
       return;
     }
     try {
       const inviteTtlMs = parseInviteDurationDraft(inviteDuration);
       const invite = await createInvite(roomId, creatorToken, inviteTtlMs);
-      setInvites((current) => [invite, ...current]);
+      if (action !== inviteActionRef.current || roomStatusRef.current !== "open") return;
+      currentInvitesRef.current = [invite, ...currentInvitesRef.current];
+      setInvites(currentInvitesRef.current);
+      if (!inviteActionIsCurrent(action, invite.token)) return;
       const inviteUrl = buildInviteUrl(roomId, invite.token, roomSecret);
       if (typeof navigator.share === "function") {
         try {
@@ -2356,11 +2369,13 @@ function RoomPage({ roomId }: { roomId: string }) {
             url: inviteUrl
           });
           recordInviteHandoff(invite.token);
+          if (!inviteActionIsCurrent(action, invite.token)) return;
           setInviteFeedback("shared");
           setRoomNotice(t("sharedInviteNotice"));
           setError(null);
           return;
         } catch (cause) {
+          if (!inviteActionIsCurrent(action, invite.token)) return;
           if (cause instanceof DOMException && cause.name === "AbortError") {
             setInviteFeedback("idle");
             setRoomNotice(t("createdInviteNotice"));
@@ -2371,17 +2386,17 @@ function RoomPage({ roomId }: { roomId: string }) {
       }
       if (await copyText(inviteUrl)) {
         recordInviteHandoff(invite.token);
+        if (!inviteActionIsCurrent(action, invite.token)) return;
         setInviteFeedback("copied");
         setRoomNotice(t("copiedInviteNotice"));
         setError(null);
         return;
       }
-      if (action !== inviteActionRef.current) return;
+      if (!inviteActionIsCurrent(action, invite.token)) return;
       setManualInvite({ token: invite.token, trigger, focusOwner });
       setInviteFeedback("idle");
-      setRoomNotice(null);
-      setError(null);
     } catch (cause) {
+      if (action !== inviteActionRef.current || roomStatusRef.current !== "open") return;
       setError(cause instanceof Error ? cause.message : t("createInviteFailed"));
     }
   }
@@ -2390,23 +2405,26 @@ function RoomPage({ roomId }: { roomId: string }) {
     const focusOwner = document.activeElement;
     const action = ++inviteActionRef.current;
     setManualInvite(null);
+    setRoomNotice(null);
+    setError(null);
     if (await copyText(buildInviteUrl(roomId, token, roomSecret))) {
       recordInviteHandoff(token);
+      if (!inviteActionIsCurrent(action, token)) return;
       setInviteFeedback("copied");
       setRoomNotice(t("copiedInviteNotice"));
       setError(null);
       return;
     }
-    if (action !== inviteActionRef.current) return;
+    if (!inviteActionIsCurrent(action, token)) return;
     setManualInvite({ token, trigger, focusOwner });
-    setRoomNotice(null);
-    setError(null);
   }
 
   async function handleNativeShareInvite(token: string, trigger: HTMLButtonElement) {
     const focusOwner = document.activeElement;
     const action = ++inviteActionRef.current;
     setManualInvite(null);
+    setRoomNotice(null);
+    setError(null);
     if (typeof navigator.share !== "function") {
       return;
     }
@@ -2417,20 +2435,21 @@ function RoomPage({ roomId }: { roomId: string }) {
         url: buildInviteUrl(roomId, token, roomSecret)
       });
       recordInviteHandoff(token);
+      if (!inviteActionIsCurrent(action, token)) return;
       setInviteFeedback("shared");
       setRoomNotice(t("sharedInviteNotice"));
       setError(null);
     } catch (cause) {
       if (!(cause instanceof DOMException && cause.name === "AbortError")) {
-        if (action !== inviteActionRef.current) return;
+        if (!inviteActionIsCurrent(action, token)) return;
         setManualInvite({ token, trigger, focusOwner });
-        setRoomNotice(null);
-        setError(null);
       }
     }
   }
 
   async function handleRevokeInvite(token: string) {
+    // Removing an invite supersedes any copy/share still awaiting browser APIs.
+    inviteActionRef.current += 1;
     if (!creatorToken) {
       return;
     }
