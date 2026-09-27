@@ -57,3 +57,6 @@ mobile behavior, reconnect recovery, clipboard behavior, or cryptographic
 security. It does not change the server's visibility, retention, encryption, or
 access control and does not deploy anything. It is separate from CI because it
 requires a running local Worker and a browser installation.
+
+For a separate real-transport interruption and automatic recovery check, see
+[the local reconnect smoke](LOCAL-RECONNECT-SMOKE.md).
