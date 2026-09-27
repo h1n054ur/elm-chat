@@ -1619,3 +1619,9 @@ select {
   background: var(--paper, #fff);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
+
+.manual-invite { display: grid; gap: 8px; min-width: 0; padding: 12px; }
+.manual-invite label { font-weight: 600; }
+.manual-invite p { margin: 0; }
+.manual-invite input { width: 100%; min-width: 0; box-sizing: border-box; font: inherit; padding: 10px; }
+.manual-invite button { justify-self: start; }
