@@ -1265,6 +1265,7 @@ function RoomPage({ roomId }: { roomId: string }) {
   const keyEpochRef = useRef(1);
   const keyReadyRef = useRef(false);
   const membershipVersionRef = useRef(0);
+  const keyWorkGenerationRef = useRef(0);
   const identityKeyRef = useRef<string>("");
   const identityPrivateKeyRef = useRef<CryptoKey | null>(null);
   const agreementPrivateKeyRef = useRef<CryptoKey | null>(null);
@@ -1308,10 +1309,10 @@ function RoomPage({ roomId }: { roomId: string }) {
   // Object URLs created for received files, revoked on expiry/unmount.
   const objectUrlsRef = useRef(new Set<string>());
 
-  async function sendPeerData(payload: PeerDataEvent, toSessionId?: string) {
+  async function sendPeerData(payload: PeerDataEvent, toSessionId?: string, isCurrent?: () => boolean) {
     const socket = socketRef.current;
     const privateKey = identityPrivateKeyRef.current;
-    if (socket?.readyState !== WebSocket.OPEN || !joinedRef.current || !privateKey) return null;
+    if (socket?.readyState !== WebSocket.OPEN || !joinedRef.current || !privateKey || (isCurrent && !isCurrent())) return null;
     const data = await createAuthenticatedPeerEvent(
       privateKey,
       roomId,
@@ -1320,7 +1321,7 @@ function RoomPage({ roomId }: { roomId: string }) {
       payload
     );
     // Signing yields to the browser; the connection may close before it finishes.
-    if (socketRef.current !== socket || socket.readyState !== WebSocket.OPEN || !joinedRef.current) return null;
+    if (socketRef.current !== socket || socket.readyState !== WebSocket.OPEN || !joinedRef.current || (isCurrent && !isCurrent())) return null;
     socket.send(JSON.stringify({ type: "peer_data", toSessionId, data }));
     eventReplayGuardRef.current?.markLocal(data.eventId);
     return data;
@@ -1334,12 +1335,31 @@ function RoomPage({ roomId }: { roomId: string }) {
     )[0];
   }
 
+  // Crypto can finish after a disconnect, a new membership, or effect cleanup.
+  function captureKeyWork(keyEpoch: number, leader: PeerDescriptor): () => boolean {
+    const socket = socketRef.current;
+    const generation = keyWorkGenerationRef.current;
+    return () => {
+      const currentLeader = currentKeyLeader();
+      return generation === keyWorkGenerationRef.current &&
+        socket !== null && socketRef.current === socket && socket.readyState === WebSocket.OPEN &&
+        joinedRef.current && roomStatusRef.current === "open" &&
+        membershipVersionRef.current === keyEpoch &&
+        currentLeader?.sessionId === leader.sessionId &&
+        currentLeader.identityKey === leader.identityKey &&
+        currentLeader.agreementKey === leader.agreementKey;
+    };
+  }
+
   async function rotateRoomKey(keyEpoch: number) {
     const leader = currentKeyLeader();
     const agreementPrivateKey = agreementPrivateKeyRef.current;
     if (!leader || leader.sessionId !== sessionId || !agreementPrivateKey) return;
+    const isCurrent = captureKeyWork(keyEpoch, leader);
+    if (!isCurrent()) return;
     const roomSecretForEpoch = generateRoomSecret();
     const nextKey = await deriveRoomKey(roomSecretForEpoch);
+    if (!isCurrent()) return;
     roomKeysRef.current.set(keyEpoch, nextKey);
     roomKeyRef.current = nextKey;
     keyEpochRef.current = keyEpoch;
@@ -1358,12 +1378,13 @@ function RoomPage({ roomId }: { roomId: string }) {
           peer.sessionId,
           roomSecretForEpoch
         );
+        if (!isCurrent()) return;
         await sendPeerData({
           type: "key_rotation",
           keyEpoch,
           senderAgreementKey: agreementPublicKeyRef.current,
           ...wrapped
-        }, peer.sessionId);
+        }, peer.sessionId, isCurrent);
       }));
   }
 
@@ -1633,6 +1654,7 @@ function RoomPage({ roomId }: { roomId: string }) {
       }
     );
     function stopReconnecting() {
+      keyWorkGenerationRef.current += 1;
       reconnectAllowed = false;
       reconnect.cancel();
       if (active) setCanRetryConnection(false);
@@ -1697,6 +1719,7 @@ function RoomPage({ roomId }: { roomId: string }) {
 
         socket.addEventListener("close", (closeEvent) => {
           if (!active || socketRef.current !== socket) return;
+          keyWorkGenerationRef.current += 1;
           joinedRef.current = false;
           keyReadyRef.current = false;
           setKeyReady(false);
@@ -1825,7 +1848,7 @@ function RoomPage({ roomId }: { roomId: string }) {
           }
 
           if (payload.type === "peer_data") {
-            await handlePeerData(payload.fromSessionId, payload.data);
+            await handlePeerData(payload.fromSessionId, payload.data, socket);
             return;
           }
 
@@ -1978,8 +2001,10 @@ function RoomPage({ roomId }: { roomId: string }) {
       }
     }
 
-    async function handlePeerData(peerId: string, event: AuthenticatedPeerEvent) {
-      if (!(await verifyPeerEvent(event, peerId))) {
+    async function handlePeerData(peerId: string, event: AuthenticatedPeerEvent, sourceSocket: WebSocket) {
+      const verified = await verifyPeerEvent(event, peerId);
+      if (!connectionAllowed() || socketRef.current !== sourceSocket || !joinedRef.current) return;
+      if (!verified) {
         setError(t("authFailed"));
         return;
       }
@@ -1995,6 +2020,8 @@ function RoomPage({ roomId }: { roomId: string }) {
           payload.keyEpoch <= keyEpochRef.current ||
           !agreementPrivateKey
         ) return;
+        const isCurrent = captureKeyWork(payload.keyEpoch, leader);
+        if (!isCurrent()) return;
         try {
           const nextSecret = await unwrapRoomSecret(
             agreementPrivateKey,
@@ -2006,7 +2033,9 @@ function RoomPage({ roomId }: { roomId: string }) {
             payload.ciphertext,
             payload.nonce
           );
+          if (!isCurrent()) return;
           const nextKey = await deriveRoomKey(nextSecret);
+          if (!isCurrent() || payload.keyEpoch <= keyEpochRef.current) return;
           roomKeysRef.current.set(payload.keyEpoch, nextKey);
           roomKeyRef.current = nextKey;
           keyEpochRef.current = payload.keyEpoch;
@@ -2015,7 +2044,7 @@ function RoomPage({ roomId }: { roomId: string }) {
           setConnection(t("connected"));
           if (shouldRequestSyncRef.current) await sendPeerData({ type: "sync_request" });
         } catch {
-          setError(t("authFailed"));
+          if (isCurrent()) setError(t("authFailed"));
         }
         return;
       }
