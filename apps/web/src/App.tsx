@@ -49,6 +49,8 @@ import { ReplayGuard } from "./replay";
 import { handleComposerKeyDown } from "./composer";
 import { ReconnectScheduler } from "./reconnect";
 import { loadRoomMetadata, RoomMetadataError } from "./room-metadata";
+import { ManualInviteLink } from "./ManualInviteLink";
+import { canShareInvite } from "./manual-invite";
 import { useConversationScroll } from "./use-conversation-scroll";
 
 type View = "landing" | "marketing" | "room";
@@ -1209,6 +1211,9 @@ function RoomPage({ roomId }: { roomId: string }) {
   const [room, setRoom] = useState<RoomMetadata | null>(null);
   const [messages, setMessages] = useState<UiMessage[]>([]);
   const [invites, setInvites] = useState<RoomInvite[]>([]);
+  const [manualInvite, setManualInvite] = useState<{ token: string; trigger: HTMLButtonElement; focusOwner: Element | null } | null>(null);
+  const inviteTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const inviteActionRef = useRef(0);
   const [draft, setDraft] = useState("");
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -2330,7 +2335,11 @@ function RoomPage({ roomId }: { roomId: string }) {
     recordGrowthEvent("invite_share_handoff");
   }
 
-  async function handleShareInvite() {
+  async function handleShareInvite(event: React.MouseEvent<HTMLButtonElement>) {
+    const trigger = event.currentTarget;
+    const focusOwner = document.activeElement;
+    const action = ++inviteActionRef.current;
+    setManualInvite(null);
     if (!creatorToken) {
       return;
     }
@@ -2367,15 +2376,20 @@ function RoomPage({ roomId }: { roomId: string }) {
         setError(null);
         return;
       }
+      if (action !== inviteActionRef.current) return;
+      setManualInvite({ token: invite.token, trigger, focusOwner });
       setInviteFeedback("idle");
-      setRoomNotice(t("inviteCopyBelow"));
+      setRoomNotice(null);
       setError(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : t("createInviteFailed"));
     }
   }
 
-  async function handleCopyInvite(token: string) {
+  async function handleCopyInvite(token: string, trigger: HTMLButtonElement) {
+    const focusOwner = document.activeElement;
+    const action = ++inviteActionRef.current;
+    setManualInvite(null);
     if (await copyText(buildInviteUrl(roomId, token, roomSecret))) {
       recordInviteHandoff(token);
       setInviteFeedback("copied");
@@ -2383,10 +2397,16 @@ function RoomPage({ roomId }: { roomId: string }) {
       setError(null);
       return;
     }
-    setError(t("clipboardInviteFailed"));
+    if (action !== inviteActionRef.current) return;
+    setManualInvite({ token, trigger, focusOwner });
+    setRoomNotice(null);
+    setError(null);
   }
 
-  async function handleNativeShareInvite(token: string) {
+  async function handleNativeShareInvite(token: string, trigger: HTMLButtonElement) {
+    const focusOwner = document.activeElement;
+    const action = ++inviteActionRef.current;
+    setManualInvite(null);
     if (typeof navigator.share !== "function") {
       return;
     }
@@ -2402,7 +2422,10 @@ function RoomPage({ roomId }: { roomId: string }) {
       setError(null);
     } catch (cause) {
       if (!(cause instanceof DOMException && cause.name === "AbortError")) {
-        setError(t("shareMenuFailed"));
+        if (action !== inviteActionRef.current) return;
+        setManualInvite({ token, trigger, focusOwner });
+        setRoomNotice(null);
+        setError(null);
       }
     }
   }
@@ -2477,6 +2500,13 @@ function RoomPage({ roomId }: { roomId: string }) {
       ? t("roomExpires", { duration: formatRelativeDuration(roomDeadline) })
       : t("roomStays");
   const isCreator = Boolean(creatorToken);
+  const manualInviteRecord = invites.find((invite) => invite.token === manualInvite?.token);
+  const showManualInvite = isCreator && room?.status === "open" &&
+    canShareInvite(manualInviteRecord, Math.max(now, Date.now()));
+  function dismissManualInvite() {
+    inviteActionRef.current += 1;
+    setManualInvite(null);
+  }
 
   if (removedFromRoom) {
     return <RemovedFromRoomScreen focusRef={setRetryFocusTarget} />;
@@ -2537,6 +2567,7 @@ function RoomPage({ roomId }: { roomId: string }) {
               <button
                 className={`secondary-button ${inviteFeedback !== "idle" ? "button-success" : ""}`}
                 onClick={handleShareInvite}
+                ref={inviteTriggerRef}
                 type="button"
               >
                 {inviteFeedback === "shared"
@@ -2661,22 +2692,26 @@ function RoomPage({ roomId }: { roomId: string }) {
           <p className="invite-guidance">
             {t("inviteGuidance")}
           </p>
+          {showManualInvite && manualInvite ? (
+            <ManualInviteLink key={manualInvite.token} url={buildInviteUrl(roomId, manualInvite.token, roomSecret)}
+              trigger={manualInvite.trigger} focusOwner={manualInvite.focusOwner} fallbackTrigger={inviteTriggerRef.current} onDismiss={dismissManualInvite} />
+          ) : null}
           {invites.slice(0, 4).map((invite) => (
             <div className="invite-row" key={invite.token} style={inviteAccentStyle(invite)}>
               <span>{inviteStatusLabel(invite)}</span>
               <div className="invite-actions">
-                {!invite.revokedAt && !invite.consumedAt ? (
+                {canShareInvite(invite, now) ? (
                   <>
                     {typeof navigator.share === "function" ? (
                       <button
                         className="secondary-button invite-copy"
-                        onClick={() => handleNativeShareInvite(invite.token)}
+                        onClick={(event) => handleNativeShareInvite(invite.token, event.currentTarget)}
                         type="button"
                       >
                         {t("share")}
                       </button>
                     ) : null}
-                    <button className="secondary-button invite-copy" onClick={() => handleCopyInvite(invite.token)} type="button">
+                    <button className="secondary-button invite-copy" onClick={(event) => handleCopyInvite(invite.token, event.currentTarget)} type="button">
                       {t("copyInvite")}
                     </button>
                   </>
