@@ -95,6 +95,7 @@ type IncomingFile = {
   senderSessionId: string;
   sha256: string;
   keyEpoch: number;
+  requested: boolean;
   timeoutId?: number;
 };
 
@@ -1398,6 +1399,7 @@ function RoomPage({ roomId }: { roomId: string }) {
   }
 
   function clearRoomSecurityState() {
+    for (const [fileId, transfer] of incomingFilesRef.current) removeIncomingFile(fileId, transfer);
     replayGuardRef.current?.clear();
     eventReplayGuardRef.current?.clear();
     roomKeysRef.current.clear();
@@ -1432,13 +1434,24 @@ function RoomPage({ roomId }: { roomId: string }) {
     });
   }
 
+  function removeIncomingFile(fileId: string, entry = incomingFilesRef.current.get(fileId)) {
+    if (!entry) return;
+    if (entry.timeoutId !== undefined) window.clearTimeout(entry.timeoutId);
+    entry.timeoutId = undefined;
+    if (incomingFilesRef.current.get(fileId) === entry) incomingFilesRef.current.delete(fileId);
+  }
+
   function armFileTimeout(fileId: string, entry: IncomingFile) {
-    if (entry.timeoutId) window.clearTimeout(entry.timeoutId);
-    entry.timeoutId = window.setTimeout(() => {
-      incomingFilesRef.current.delete(fileId);
+    if (!entry.requested || incomingFilesRef.current.get(fileId) !== entry) return;
+    if (entry.timeoutId !== undefined) window.clearTimeout(entry.timeoutId);
+    const timeoutId = window.setTimeout(() => {
+      // A cleared/queued callback must not remove a replacement or refreshed transfer.
+      if (incomingFilesRef.current.get(fileId) !== entry || entry.timeoutId !== timeoutId) return;
+      removeIncomingFile(fileId, entry);
       updateFileMessage(fileId, { state: "error" });
       void sendPeerData({ type: "file_cancel", fileId, reason: "timeout" }, entry.senderSessionId);
     }, 30_000);
+    entry.timeoutId = timeoutId;
   }
 
   async function waitForSocketDrain() {
@@ -1485,22 +1498,8 @@ function RoomPage({ roomId }: { roomId: string }) {
     if (!key) {
       return;
     }
-    let entry = incomingFilesRef.current.get(payload.fileId);
-    if (!entry) {
-      entry = {
-        name: "file",
-        mimeType: "application/octet-stream",
-        size: 0,
-        totalChunks: payload.totalChunks,
-        received: 0,
-        receivedBytes: 0,
-        chunks: [],
-        senderSessionId: "",
-        sha256: "",
-        keyEpoch: payload.keyEpoch
-      };
-      incomingFilesRef.current.set(payload.fileId, entry);
-    }
+    const entry = incomingFilesRef.current.get(payload.fileId);
+    if (!entry?.requested) return;
     if (entry.keyEpoch !== payload.keyEpoch) return;
     if (entry.chunks.length !== payload.totalChunks) {
       entry.chunks = new Array<Uint8Array | undefined>(payload.totalChunks);
@@ -1511,6 +1510,7 @@ function RoomPage({ roomId }: { roomId: string }) {
     if (!entry.chunks[payload.chunkIndex]) {
       try {
         const chunk = await decryptBytes(key, payload.ciphertext, payload.nonce);
+        if (incomingFilesRef.current.get(payload.fileId) !== entry) return;
         if (entry.receivedBytes + chunk.byteLength > entry.size || chunk.byteLength > FILE_CHUNK_BYTES) {
           throw new Error("File chunk exceeds declared bounds.");
         }
@@ -1518,6 +1518,8 @@ function RoomPage({ roomId }: { roomId: string }) {
         entry.received += 1;
         entry.receivedBytes += chunk.byteLength;
       } catch {
+        if (incomingFilesRef.current.get(payload.fileId) !== entry) return;
+        removeIncomingFile(payload.fileId, entry);
         updateFileMessage(payload.fileId, { state: "error" });
         return;
       }
@@ -1532,11 +1534,11 @@ function RoomPage({ roomId }: { roomId: string }) {
   // Receiver side: reassemble a completed file into a downloadable blob URL.
   async function finalizeIncoming(fileId: string, announcedSha256: string) {
     const entry = incomingFilesRef.current.get(fileId);
-    if (!entry) {
-      return;
-    }
-    if (entry.timeoutId) window.clearTimeout(entry.timeoutId);
+    if (!entry?.requested) return;
+    if (entry.timeoutId !== undefined) window.clearTimeout(entry.timeoutId);
+    entry.timeoutId = undefined;
     if (entry.totalChunks === 0 || entry.received < entry.totalChunks) {
+      removeIncomingFile(fileId, entry);
       updateFileMessage(fileId, { state: "error" });
       return;
     }
@@ -1548,8 +1550,9 @@ function RoomPage({ roomId }: { roomId: string }) {
       offset += part.byteLength;
     }
     const digest = await sha256Base64Url(bytes);
+    if (incomingFilesRef.current.get(fileId) !== entry) return;
     if (bytes.byteLength !== entry.size || digest !== entry.sha256 || digest !== announcedSha256) {
-      incomingFilesRef.current.delete(fileId);
+      removeIncomingFile(fileId, entry);
       updateFileMessage(fileId, { state: "error" });
       await sendPeerData({ type: "file_cancel", fileId, reason: "integrity" }, entry.senderSessionId);
       return;
@@ -1557,7 +1560,7 @@ function RoomPage({ roomId }: { roomId: string }) {
     const blob = new Blob(parts as BlobPart[], { type: entry.mimeType });
     const url = URL.createObjectURL(blob);
     objectUrlsRef.current.add(url);
-    incomingFilesRef.current.delete(fileId);
+    removeIncomingFile(fileId, entry);
     updateFileMessage(fileId, { state: "ready", progress: 1, url });
   }
 
@@ -1627,9 +1630,14 @@ function RoomPage({ roomId }: { roomId: string }) {
   }
 
   async function handleRequestFile(fileId: string, senderSessionId: string) {
+    const entry = incomingFilesRef.current.get(fileId);
+    if (!entry || entry.senderSessionId !== senderSessionId || entry.requested) return;
+    entry.requested = true;
+    armFileTimeout(fileId, entry);
     updateFileMessage(fileId, { state: "transferring", progress: 0 });
     const requested = await sendPeerData({ type: "file_request", fileId }, senderSessionId);
-    if (!requested) {
+    if (!requested && incomingFilesRef.current.get(fileId) === entry) {
+      removeIncomingFile(fileId, entry);
       updateFileMessage(fileId, { state: "error" });
       setError(t("fileRequestFailed"));
     }
@@ -1654,6 +1662,7 @@ function RoomPage({ roomId }: { roomId: string }) {
       }
     );
     function stopReconnecting() {
+      for (const [fileId, transfer] of incomingFilesRef.current) removeIncomingFile(fileId, transfer);
       keyWorkGenerationRef.current += 1;
       reconnectAllowed = false;
       reconnect.cancel();
@@ -1839,8 +1848,7 @@ function RoomPage({ roomId }: { roomId: string }) {
             }
             for (const [fileId, transfer] of incomingFilesRef.current) {
               if (transfer.senderSessionId === payload.sessionId) {
-                if (transfer.timeoutId) window.clearTimeout(transfer.timeoutId);
-                incomingFilesRef.current.delete(fileId);
+                removeIncomingFile(fileId, transfer);
                 updateFileMessage(fileId, { state: "error" });
               }
             }
@@ -2102,7 +2110,9 @@ function RoomPage({ roomId }: { roomId: string }) {
         if (typeof expiresAt === "number" && expiresAt <= Date.now()) {
           return;
         }
+        removeIncomingFile(payload.fileId);
         incomingFilesRef.current.set(payload.fileId, {
+          requested: false,
           name: payload.name,
           mimeType: payload.mimeType || "application/octet-stream",
           size: payload.size,
@@ -2114,7 +2124,6 @@ function RoomPage({ roomId }: { roomId: string }) {
           sha256: payload.sha256,
           keyEpoch: payload.keyEpoch
         });
-        armFileTimeout(payload.fileId, incomingFilesRef.current.get(payload.fileId)!);
         startTransition(() => {
           setMessages((current) =>
             upsertMessage(current, {
@@ -2171,9 +2180,7 @@ function RoomPage({ roomId }: { roomId: string }) {
       }
 
       if (payload.type === "file_cancel") {
-        const incoming = incomingFilesRef.current.get(payload.fileId);
-        if (incoming?.timeoutId) window.clearTimeout(incoming.timeoutId);
-        incomingFilesRef.current.delete(payload.fileId);
+        removeIncomingFile(payload.fileId);
         updateFileMessage(payload.fileId, { state: "error" });
         return;
       }
@@ -2194,9 +2201,7 @@ function RoomPage({ roomId }: { roomId: string }) {
       retryConnectionRef.current = null;
       window.clearInterval(tick);
       socketRef.current?.close();
-      for (const transfer of incomingFilesRef.current.values()) {
-        if (transfer.timeoutId) window.clearTimeout(transfer.timeoutId);
-      }
+      for (const [fileId, transfer] of incomingFilesRef.current) removeIncomingFile(fileId, transfer);
     };
   }, [creatorToken, inviteToken, roomId, roomSecret, sessionId]);
 
@@ -2249,7 +2254,7 @@ function RoomPage({ roomId }: { roomId: string }) {
             }
             outgoingFilesRef.current.delete(message.id);
             outgoingFileHashesRef.current.delete(message.id);
-            incomingFilesRef.current.delete(message.id);
+            removeIncomingFile(message.id);
           }
           return keep;
         })
