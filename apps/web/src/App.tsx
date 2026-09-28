@@ -707,10 +707,11 @@ function GithubMark({ size = 16 }: { size?: number }) {
 }
 
 function FileCard({ file, onDownload }: { file: UiFile; onDownload: () => void }) {
+  const cardRef = useRef<HTMLDivElement>(null);
   const progress = file.progress ?? 0;
   const percent = Number.isFinite(progress) ? Math.round(Math.min(1, Math.max(0, progress)) * 100) : 0;
   return (
-    <div className="file-card">
+    <div aria-label={t("fileCardLabel", { name: file.name })} className="file-card" ref={cardRef} role="group" tabIndex={-1}>
       <div className="file-card-head">
         <span className="file-icon" aria-hidden="true">
           &#128206;
@@ -723,7 +724,11 @@ function FileCard({ file, onDownload }: { file: UiFile; onDownload: () => void }
       {file.outgoing ? (
         <span className="file-status">{t("fileShared")}</span>
       ) : file.state === "offered" ? (
-        <button aria-label={t("downloadFileLabel", { name: file.name })} className="secondary-button file-action" onClick={onDownload} type="button">
+        <button aria-label={t("downloadFileLabel", { name: file.name })} className="secondary-button file-action" onClick={(event) => {
+          // Preserve the initiating control's focus before progress replaces it.
+          if (document.activeElement === event.currentTarget) cardRef.current?.focus({ preventScroll: true });
+          onDownload();
+        }} type="button">
           {t("download")}
         </button>
       ) : file.state === "requesting" || file.state === "transferring" ? (
