@@ -1223,6 +1223,9 @@ function RoomPage({ roomId }: { roomId: string }) {
   const currentInvitesRef = useRef(invites);
   currentInvitesRef.current = invites;
   const [draft, setDraft] = useState("");
+  const draftRevisionRef = useRef(0);
+  const sendingRef = useRef(false);
+  const [sending, setSending] = useState(false);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [connection, setConnection] = useState(t("connecting"));
@@ -2297,66 +2300,73 @@ function RoomPage({ roomId }: { roomId: string }) {
 
   async function handleSend(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (sendingRef.current) return;
     const trimmed = draft.trim();
-    if (!trimmed || !roomKeyRef.current || !room || room.status !== "open") {
-      return;
-    }
+    const key = roomKeyRef.current;
+    const leader = currentKeyLeader();
+    if (!trimmed || !key || !leader || !room || room.status !== "open") return;
     if (!keyReadyRef.current) {
       setError(t("securing"));
       return;
     }
-
-    const sentAt = Date.now();
-    const expiresAt =
-      typeof room.disappearAfterReadSeconds === "number"
-        ? sentAt + room.disappearAfterReadSeconds * 1000
-        : undefined;
-    const envelope: EncryptedMessageEnvelope = {
-      protocolVersion: MESSAGE_PROTOCOL_VERSION,
-      messageId: generateMessageId(),
-      senderSessionId: sessionId,
-      ciphertext: "",
-      nonce: "",
-      sentAt,
-      expiresAfterReadSeconds: room.disappearAfterReadSeconds ?? null,
-      keyEpoch: keyEpochRef.current
-    };
-    const encrypted = await encryptMessage(roomKeyRef.current, roomId, envelope, trimmed);
-    envelope.ciphertext = encrypted.ciphertext;
-    envelope.nonce = encrypted.nonce;
-
+    const keyEpoch = keyEpochRef.current;
+    const keyWorkIsCurrent = captureKeyWork(keyEpoch, leader);
+    const isCurrent = () => keyWorkIsCurrent() && roomKeyRef.current === key;
+    if (!isCurrent()) return;
+    const draftRevision = draftRevisionRef.current;
+    // A ref blocks same-tick Enter/click submissions before React renders.
+    sendingRef.current = true;
+    setSending(true);
     try {
-      replayGuardRef.current!.markLocal(envelope.messageId, expiresAt ?? null);
-    } catch {
-      setError(t("replayLimit"));
-      return;
-    }
-    jumpToLatest();
-    setDraft("");
-    setError(null);
-    startTransition(() => {
-      setMessages((current) =>
-        upsertMessage(current, {
+      const sentAt = Date.now();
+      const expiresAt = typeof room.disappearAfterReadSeconds === "number"
+        ? sentAt + room.disappearAfterReadSeconds * 1000 : undefined;
+      const envelope: EncryptedMessageEnvelope = {
+        protocolVersion: MESSAGE_PROTOCOL_VERSION,
+        messageId: generateMessageId(),
+        senderSessionId: sessionId,
+        ciphertext: "",
+        nonce: "",
+        sentAt,
+        expiresAfterReadSeconds: room.disappearAfterReadSeconds ?? null,
+        keyEpoch
+      };
+      const encrypted = await encryptMessage(key, roomId, envelope, trimmed);
+      if (!isCurrent()) return;
+      envelope.ciphertext = encrypted.ciphertext;
+      envelope.nonce = encrypted.nonce;
+      try {
+        replayGuardRef.current!.markLocal(envelope.messageId, expiresAt ?? null);
+      } catch {
+        setError(t("replayLimit"));
+        return;
+      }
+      const sentEvent = await sendPeerData({ type: "chat_message", envelope }, undefined, isCurrent);
+      if (!sentEvent) {
+        if (isCurrent()) setError(t("messageSendFailed"));
+        return;
+      }
+      messageRef.current.set(envelope.messageId, sentEvent);
+      // Keep edits made while encryption/signing was pending, even if the user
+      // edited back to the same text. Failed attempts also retain the draft.
+      if (draftRevisionRef.current === draftRevision) setDraft("");
+      jumpToLatest();
+      setError(null);
+      startTransition(() => {
+        setMessages((current) => upsertMessage(current, {
           id: envelope.messageId,
           senderSessionId: sessionId,
           plaintext: trimmed,
           sentAt,
           expiresAt,
           kind: "text"
-        })
-      );
-    });
-
-    if (!joinedRef.current || socketRef.current?.readyState !== WebSocket.OPEN) {
-      setError(t("messageDeliveryPending"));
-      return;
-    }
-
-    const sentEvent = await sendPeerData({ type: "chat_message", envelope });
-    if (!sentEvent) {
-      setError(t("messageDeliveryFailed"));
-    } else {
-      messageRef.current.set(envelope.messageId, sentEvent);
+        }));
+      });
+    } catch {
+      if (isCurrent()) setError(t("messageSendFailed"));
+    } finally {
+      sendingRef.current = false;
+      setSending(false);
     }
   }
 
@@ -2855,13 +2865,16 @@ function RoomPage({ roomId }: { roomId: string }) {
         <textarea
           aria-label={t("writeMessageLabel")}
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
+          onChange={(event) => {
+            draftRevisionRef.current += 1;
+            setDraft(event.target.value);
+          }}
           onKeyDown={handleComposerKeyDown}
           disabled={room?.status !== "open" || !keyReady}
           placeholder={room?.status === "open" ? (keyReady ? t("writeMessage") : t("securing")) : roomNotice ?? t("roomClosed")}
           rows={3}
         />
-        <button className="primary-button" type="submit" disabled={!draft.trim() || room?.status !== "open" || !keyReady}>
+        <button className="primary-button" type="submit" disabled={sending || !draft.trim() || room?.status !== "open" || !keyReady}>
           {t("sendEncrypted")}
         </button>
       </form>
