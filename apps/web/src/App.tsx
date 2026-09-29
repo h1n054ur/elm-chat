@@ -52,6 +52,7 @@ import { loadRoomMetadata, RoomMetadataError } from "./room-metadata";
 import { ManualInviteLink } from "./ManualInviteLink";
 import { canShareInvite } from "./manual-invite";
 import { useConversationScroll } from "./use-conversation-scroll";
+import { useConversationFind } from "./use-conversation-find";
 
 type View = "landing" | "marketing" | "room";
 
@@ -1243,6 +1244,13 @@ function RoomPage({ roomId }: { roomId: string }) {
   const [keyReady, setKeyReady] = useState(false);
   const [presence, setPresence] = useState<PresenceSnapshot>({ count: 0, connectedSessionIds: [] });
   const [now, setNow] = useState(Date.now());
+  const conversationFind = useConversationFind(messages, now, (id) => {
+    const log = chatLogRef.current;
+    const article = log?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(id)}"]`);
+    if (!log || !article) return;
+    log.scrollTop += article.getBoundingClientRect().top - log.getBoundingClientRect().top - 12;
+    handleConversationScroll();
+  });
   const [roomNotice, setRoomNotice] = useState<string | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState<ActionFeedback>("idle");
@@ -1284,7 +1292,7 @@ function RoomPage({ roomId }: { roomId: string }) {
   // already-closed room without reading a stale `room` value.
   const roomStatusRef = useRef<RoomMetadata["status"] | null>(null);
   const { chatLogRef, awayFromLatest, newMessageCount, jumpToLatest, handleConversationScroll } =
-    useConversationScroll(messages, ready);
+    useConversationScroll(messages, ready, conversationFind.open);
   const messageRef = useRef(new Map<string, AuthenticatedPeerEvent>());
   const replayGuardRef = useRef<ReplayGuard | null>(null);
   const eventReplayGuardRef = useRef<ReplayGuard | null>(null);
@@ -1404,6 +1412,7 @@ function RoomPage({ roomId }: { roomId: string }) {
   }
 
   function clearRoomSecurityState() {
+    conversationFind.close();
     for (const [fileId, transfer] of incomingFilesRef.current) removeIncomingFile(fileId, transfer);
     replayGuardRef.current?.clear();
     eventReplayGuardRef.current?.clear();
@@ -2566,6 +2575,11 @@ function RoomPage({ roomId }: { roomId: string }) {
     setManualInvite(null);
   }
 
+  useEffect(() => {
+    if (removedFromRoom || notFound || (room && room.status !== "open") ||
+      ["invalid", "claimed", "used"].includes(inviteAccess)) conversationFind.close();
+  }, [removedFromRoom, notFound, room?.status, inviteAccess]);
+
   if (removedFromRoom) {
     return <RemovedFromRoomScreen focusRef={setRetryFocusTarget} />;
   }
@@ -2785,6 +2799,7 @@ function RoomPage({ roomId }: { roomId: string }) {
         </section>
       ) : null}
 
+      {conversationFind.controls}
       <section className="chat-stage">
         <section aria-label={t("conversationLog")} aria-live="polite" aria-relevant="additions" className="chat-log" ref={chatLogRef} role="log" tabIndex={0} onScroll={handleConversationScroll}>
         <div className="chat-thread">
@@ -2796,7 +2811,8 @@ function RoomPage({ roomId }: { roomId: string }) {
             const mine = message.senderSessionId === sessionId;
             return (
               <article
-                className={`bubble ${mine ? "bubble-mine" : "bubble-theirs"}`}
+                className={`bubble ${mine ? "bubble-mine" : "bubble-theirs"}${conversationFind.selectedId === message.id ? " bubble-find-selected" : ""}`}
+                data-message-id={message.id}
                 key={message.id}
                 style={bubbleStyle(message.senderSessionId, mine)}
               >
