@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { isNearLatest, unseenMessageIds } from "./conversation-scroll";
 
-export function useConversationScroll(messages: readonly { id: string }[], ready: boolean) {
+export function useConversationScroll(messages: readonly { id: string }[], ready: boolean, pauseFollowing = false) {
   const chatLogRef = useRef<HTMLElement | null>(null);
   const followingRef = useRef(true);
   const previousIdsRef = useRef<ReadonlySet<string>>(new Set());
@@ -39,11 +39,12 @@ export function useConversationScroll(messages: readonly { id: string }[], ready
     }
     const ids = messages.map((message) => message.id);
     pendingIdsRef.current = unseenMessageIds(
-      previousIdsRef.current, pendingIdsRef.current, ids, followingRef.current
+      previousIdsRef.current, pendingIdsRef.current, ids, followingRef.current && !pauseFollowing
     );
     previousIdsRef.current = new Set(ids);
     setNewMessageCount(pendingIdsRef.current.size);
-    if (followingRef.current || messages.length === 0) {
+    if (pauseFollowing) setAwayFromLatest(!isNearLatest(log) || pendingIdsRef.current.size > 0);
+    if (!pauseFollowing && (followingRef.current || messages.length === 0)) {
       jumpToLatest();
     }
     // When reading earlier messages, leave scrollTop to native scroll anchoring.

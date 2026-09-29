@@ -852,6 +852,20 @@ select {
   outline-offset: 4px;
 }
 
+.conversation-find { width: 100%; }
+.conversation-find-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+}
+.conversation-find-panel label { font-weight: 600; }
+.conversation-find-panel input { flex: 1 1 220px; min-width: 0; }
+.conversation-find-count { font-size: 0.85rem; }
+.conversation-find-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.bubble-find-selected { outline: 2px solid currentColor; outline-offset: -2px; }
+
 .file-card-head {
   display: flex;
   align-items: center;
