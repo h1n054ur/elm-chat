@@ -23,6 +23,8 @@ async function step(name, run) {
 }
 
 try {
+  const recoveryMode = process.env.RECOVERY_MODE || 'automatic';
+  check(['automatic', 'manual'].includes(recoveryMode));
   origin = new URL(process.env.TEST_ORIGIN || 'http://127.0.0.1:5210');
   check(origin.protocol === 'http:' && origin.hostname === '127.0.0.1');
   check(!origin.username && !origin.password && !origin.search && !origin.hash && origin.pathname === '/');
@@ -60,6 +62,10 @@ try {
   const guest = await page(guestOrigin);
   let guestSockets = 0;
   let guestCloses = 0;
+  let guestMetadataRequests = 0;
+  guest.on('request', request => {
+    if (/^\/api\/rooms\/[^/]+$/.test(new URL(request.url()).pathname)) guestMetadataRequests += 1;
+  });
   guest.on('websocket', socket => { guestSockets += 1; socket.on('close', () => { guestCloses += 1; }); });
   roomPage = creator;
   const ready = async p => { await p.locator('.composer textarea:not([disabled])').waitFor(); };
@@ -109,7 +115,7 @@ try {
       baselineMessages.push({ to, text });
     }
   });
-  await step('guest-only cut and in-place automatic reconnect', async () => {
+  await step(`guest-only cut and in-place ${recoveryMode} reconnect`, async () => {
     const draft = 'Synthetic preserved reconnect draft';
     await guest.locator('.composer textarea').fill(draft);
     const sentinel = crypto.randomUUID();
@@ -133,7 +139,19 @@ try {
     await guest.locator('.composer textarea:disabled').waitFor();
     check(await guest.locator('.composer textarea').inputValue() === draft);
     console.log('PASS observed real guest socket close, creator presence loss, disabled draft preserved');
-    forwarding = true;
+    if (recoveryMode === 'manual') {
+      await guest.getByRole('button', { name: 'Retry connection', exact: true }).waitFor({ timeout: 35000 });
+      check(await guest.locator('.composer textarea').isDisabled());
+      check(await guest.locator('.composer textarea').inputValue() === draft);
+      const exhaustedRequests = guestMetadataRequests;
+      forwarding = true;
+      // Longer than the maximum automatic backoff: restored transport alone must
+      // not restart an exhausted scheduler. No browser clocks/timers are patched.
+      await guest.waitForTimeout(9000);
+      check(guestMetadataRequests === exhaustedRequests && guestSockets === beforeSockets);
+      check(await guest.locator('.composer textarea').isDisabled());
+      await guest.getByRole('button', { name: 'Retry connection', exact: true }).click();
+    } else forwarding = true;
     for (const p of [creator, guest]) {
       await p.getByText('2 present', { exact: true }).waitFor();
       await ready(p);
@@ -170,8 +188,27 @@ try {
   });
   await step('destroy room and terminate both peers', async () => {
     unusedInvite = await invite();
+    if (recoveryMode === 'manual') {
+      const beforeCloses = guestCloses;
+      forwarding = false;
+      for (const { client, upstream } of pipes) { client.destroy(); upstream.destroy(); }
+      const deadline = Date.now() + 10000;
+      while (guestCloses === beforeCloses && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 25));
+      check(guestCloses > beforeCloses);
+      await creator.getByText('1 present', { exact: true }).waitFor();
+      await guest.locator('.composer textarea:disabled').waitFor();
+      await guest.getByRole('button', { name: 'Retry connection', exact: true }).waitFor({ timeout: 35000 });
+    }
     await creator.getByRole('button', { name: 'Destroy', exact: true }).click();
-    await Promise.all([closed(creator), closed(guest)]);
+    await closed(creator);
+    if (recoveryMode === 'manual') {
+      const terminalSockets = guestSockets;
+      forwarding = true;
+      await guest.getByRole('button', { name: 'Retry connection', exact: true }).click();
+      await closed(guest);
+      check(guestSockets === terminalSockets);
+      check(await guest.getByRole('button', { name: 'Retry connection', exact: true }).count() === 0);
+    } else await closed(guest);
     destroyed = true;
   });
   await step('unused invite cannot admit after destruction', async () => {
@@ -189,7 +226,7 @@ try {
     check(guestSockets === terminalSockets);
     for (const p of [creator, guest, visitor]) check(await p.locator('.composer').count() === 0);
   });
-  console.log(`PASS real local reconnect smoke (${browser.version()}); no capability artifacts saved`);
+  console.log(`PASS real local ${recoveryMode} reconnect smoke (${browser.version()}); no capability artifacts saved`);
 } catch (error) {
   // Playwright error messages can contain current URLs with invite capabilities.
   console.error(`FAIL ${phase} (${error?.name || 'Error'}); details suppressed to protect local capabilities`);

@@ -44,9 +44,35 @@ screenshots or storage dumps. Unrelated public feeds/off-origin browser requests
 are blocked; room traffic is forwarded unchanged.
 
 This tests one abrupt guest disconnect followed by automatic recovery on local
-desktop Chromium. It does not test retry exhaustion, manual Retry, mobile
-suspension, packet loss, messages sent while offline, or terminal transitions
+desktop Chromium. The default automatic mode does not test retry exhaustion or manual Retry
+(see the opt-in variant below). Neither mode covers mobile suspension, packet loss, messages sent while offline, or terminal transitions
 during an in-flight crypto operation. Session/public identity continuity and
 successful decryption are behavioral checks, not a cryptographic security audit.
 The nine-second observation is bounded evidence, not proof against every delayed
 race. This script adds no runtime behavior, server logging or retention.
+
+## Exhausted retries and manual Retry
+
+Set `RECOVERY_MODE=manual` on the same invocation to run the exhaustion variant
+(about one minute). The default `automatic` mode remains the short recovery test;
+other values are rejected before browser startup.
+
+The guest stays disconnected until the real scheduler exhausts its retry budget
+and exposes Retry connection. No clocks, browser timers, HTTP responses or
+WebSocket messages are replaced. The TCP cut is the deliberate fault injection.
+After forwarding resumes, a nine-second observation verifies no metadata request
+or new guest socket and no enabled composer before the user explicitly selects
+Retry. The same document, session/public identity and unsent draft must survive;
+recipient decryption and exact-once history checks then run as in automatic mode.
+
+The manual variant also exhausts retries a second time, destroys the room through
+the still-connected creator, and only then restores transport and selects Retry.
+The guest must discover the terminal room through real metadata, expose neither
+a composer nor another Retry control, and create no replacement WebSocket. An
+unused invite must still be rejected. The final nine-second observation checks
+for revived sockets/composers. Each exhaustion wait is bounded at 35 seconds.
+
+This covers real local desktop retry exhaustion and manual recovery. It does not
+cover every failure cause, mobile suspension, focus/screen-reader behavior or
+terminal races inside cryptographic operations. Use synthetic content only and
+verify the local server serves the expected checkout's built assets before a run.
