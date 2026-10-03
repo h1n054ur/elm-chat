@@ -6,13 +6,16 @@
   "dependencies": {
     "@elm-chat/crypto": "*",
     "@elm-chat/shared": "*",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@types/react": "^19.1.1",
     "@types/react-dom": "^19.1.2",
     "@vitejs/plugin-react": "^4.4.1",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.8.3",
     "vite": "^6.3.2"
   },

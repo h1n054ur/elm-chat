@@ -1,6 +1,8 @@
 // The room shell uses a small, local catalog. Security warnings are translated
 // here with the same scope as the English source text.
 export const english = {
+  // --- B: landing, limits page, full-screen states (add keys here only) ---
+  // --- end B ---
   minutes: "Minutes",
   hours: "Hours",
   days: "Days",
@@ -183,13 +185,17 @@ export const english = {
   freshcodeOpen: "elm.chat v0.1.0 is open for inspection.",
   freshcodeCopy: "Try a short-lived room below, review the documented limits, or deploy your own Cloudflare instance. This early release has not had an independent security audit.",
   inspectRelease: "Inspect v0.1.0",
-  deployOwn: "Deploy your own"
+  deployOwn: "Deploy your own",
+  // --- C: room (add keys here only) ---
+  // --- end C ---
 } as const;
 
 export type MessageKey = keyof typeof english;
 export type Locale = "en" | "es";
 
 export const spanish: Record<MessageKey, string> = {
+  // --- B: landing, limits page, full-screen states (add keys here only) ---
+  // --- end B ---
   minutes: "Minutos",
   hours: "Horas",
   days: "Días",
@@ -372,7 +378,9 @@ export const spanish: Record<MessageKey, string> = {
   freshcodeOpen: "elm.chat v0.1.0 está disponible para inspección.",
   freshcodeCopy: "Prueba una sala temporal, revisa los límites documentados o despliega tu propia instancia en Cloudflare. Esta versión inicial no ha tenido una auditoría de seguridad independiente.",
   inspectRelease: "Inspeccionar v0.1.0",
-  deployOwn: "Desplegar una instancia"
+  deployOwn: "Desplegar una instancia",
+  // --- C: room (add keys here only) ---
+  // --- end C ---
 };
 
 export function resolveLocale(languages: readonly string[]): Locale {

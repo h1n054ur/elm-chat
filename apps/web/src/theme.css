@@ -1,0 +1,95 @@
+@import "tailwindcss";
+@import "@fontsource-variable/jetbrains-mono/wght.css";
+
+/*
+ * Look B (h1n054ur terminal identity), from docs/mockups/b-terminal.html.
+ * Surfaces are CSS variables so light and dark follow the system theme without dark: variants on every class.
+ * Use them as Tailwind colours: bg-bg, bg-panel, border-line, text-fg, text-dim, text-acc, text-acc2.
+ */
+@theme {
+  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: var(--font-mono);
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-dim: var(--dim);
+  --color-acc: var(--acc);
+  --color-acc2: var(--acc2);
+  --color-danger: var(--danger);
+}
+
+:root {
+  color-scheme: light dark;
+  --bg: #f4f6f2;
+  --panel: #ffffff;
+  --line: #cfd8cc;
+  --fg: #101a12;
+  --dim: #5b6b5e;
+  --acc: #0a8a3a;
+  --acc2: #007f99;
+  --danger: #d62d2d;
+  /* Text on the gradient: white on the darker light-theme greens, black on the neon dark theme. */
+  --on-grad: #ffffff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #06090a;
+    --panel: #0b1012;
+    --line: #1d2a26;
+    --fg: #d7e5dc;
+    --dim: #6f8a7c;
+    --acc: #39ff14;
+    --acc2: #00e5ff;
+    --danger: #ff5c5c;
+    --on-grad: #000000;
+  }
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+  }
+  body {
+    min-height: 100dvh;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-mono);
+  }
+  [hidden] {
+    display: none !important;
+  }
+}
+
+@layer components {
+  /* Gradient fill (create/send buttons, top rule) and gradient text (wordmark, hero accent). */
+  .grad {
+    background-image: linear-gradient(90deg, var(--acc), var(--acc2));
+    color: var(--on-grad);
+  }
+  .grad-text {
+    background-image: linear-gradient(90deg, var(--acc), var(--acc2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  /* Box panel with a small uppercase title sitting in its top border: <section class="box"><span class="box-title">room</span>... */
+  .box {
+    position: relative;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--panel);
+  }
+  .box-title {
+    position: absolute;
+    top: -0.65em;
+    left: 0.9rem;
+    padding: 0 0.4rem;
+    background: var(--panel);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+}

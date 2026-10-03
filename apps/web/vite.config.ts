@@ -1,3 +1,4 @@
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
@@ -10,7 +11,7 @@ import { defineConfig } from "vite";
 const WORKER_ORIGIN = process.env.WORKER_ORIGIN ?? "http://localhost:8799";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), tailwindcss()],
   server: {
     port: 3000,
     proxy: {
