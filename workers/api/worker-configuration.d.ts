@@ -4,14 +4,6 @@ interface Fetcher {
   fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response>;
 }
 
-interface AnalyticsEngineDataset {
-  writeDataPoint(event: {
-    indexes?: string[];
-    blobs?: string[];
-    doubles?: number[];
-  }): void;
-}
-
 interface DurableObjectState {
   storage: {
     get<T>(key: string): Promise<T | undefined>;

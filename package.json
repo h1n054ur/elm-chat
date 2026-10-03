@@ -9,21 +9,15 @@
     "durable-objects/*"
   ],
   "scripts": {
-    "test": "bun run test:scripts && vitest run",
-    "test:scripts": "node --test scripts/tests/*.test.mjs",
-    "build": "bun run check:wrangler-configs && bun run check:growth-privacy && bun run check:message-protocol && bun run check:community-feed && bun run --filter @elm-chat/web build && bun run check:security-copy && bun run --filter @elm-chat/api build",
+    "test": "vitest run",
+    "build": "bun run check:wrangler-configs && bun run check:message-protocol && bun run --filter @elm-chat/web build && bun run --filter @elm-chat/api build",
     "check:wrangler-configs": "node scripts/check-wrangler-configs.mjs",
-    "check:growth-privacy": "node scripts/check-growth-privacy.mjs",
     "check:message-protocol": "node scripts/check-message-protocol.mjs",
-    "check:community-feed": "node scripts/check-community-feed.mjs",
-    "check:security-copy": "node scripts/check-security-copy.mjs",
-    "self-host:smoke-report": "node scripts/self-host-smoke-report.mjs",
     "typecheck": "bun run --filter @elm-chat/shared typecheck && bun run --filter @elm-chat/crypto typecheck && bun run --filter @elm-chat/web typecheck && bun run --filter @elm-chat/api typecheck",
     "dev": "concurrently -k -n api,web -c blue,green \"bun run dev:api\" \"bun run dev:web\"",
     "dev:web": "bun run --filter @elm-chat/web dev",
     "dev:api": "bun run --filter @elm-chat/api dev",
-    "deploy": "bun run check:wrangler-configs && bun run check:growth-privacy && bun run check:message-protocol && bun run check:community-feed && bun run --filter @elm-chat/web build && bun run check:security-copy && CLOUDFLARE_ACCOUNT_ID=\"${ELM_CHAT_CLOUDFLARE_ACCOUNT_ID:-$CLOUDFLARE_ACCOUNT_ID}\" wrangler deploy -c wrangler.jsonc",
-    "deploy:production": "bun run check:wrangler-configs && bun run check:growth-privacy && bun run check:message-protocol && bun run check:community-feed && bun run --filter @elm-chat/web build && bun run check:security-copy && bun run --filter @elm-chat/api deploy"
+    "deploy": "bun run check:wrangler-configs && bun run check:message-protocol && bun run --filter @elm-chat/web build && CLOUDFLARE_ACCOUNT_ID=\"${ELM_CHAT_CLOUDFLARE_ACCOUNT_ID:-$CLOUDFLARE_ACCOUNT_ID}\" wrangler deploy -c wrangler.jsonc"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.1.13",

@@ -1,6 +1,5 @@
-// Deploy-button entry point. Keep runtime resources in sync with
-// workers/api/wrangler.jsonc. GROWTH is intentionally omitted because
-// Deploy to Cloudflare does not auto-provision Analytics Engine datasets.
+// Root entry point. Keep runtime resources in sync with
+// workers/api/wrangler.jsonc.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "elm-chat",

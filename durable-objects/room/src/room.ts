@@ -51,7 +51,6 @@ type RoomBootstrap = Pick<
 >;
 
 export interface Env {
-  GROWTH?: AnalyticsEngineDataset;
   ROOM_OBJECT: DurableObjectNamespace<RoomDurableObject>;
 }
 
@@ -61,7 +60,7 @@ const DEFAULT_INVITE_TTL_MS = 10 * 60 * 1000;
 const JOIN_TIMEOUT_MS = 15 * 1000;
 
 type InviteAdmission =
-  | { ok: true; invite?: RoomInvite; newlyClaimed: boolean }
+  | { ok: true; invite?: RoomInvite }
   | { ok: false; code: string; message: string; closeReason: string };
 
 function jsonResponse(payload: unknown, status = 200): Response {
@@ -358,13 +357,6 @@ export class RoomDurableObject extends DurableObject<Env> {
       admission.invite.consumedBySessionId = payload.sessionId;
       this.invites.set(admission.invite.token, admission.invite);
       await this.persistInvites();
-      if (admission.newlyClaimed) {
-        this.env.GROWTH?.writeDataPoint({
-          indexes: ["invite_redeemed"],
-          blobs: [""],
-          doubles: [1]
-        });
-      }
     }
 
     const peers = this.connectedSessions()
@@ -399,7 +391,7 @@ export class RoomDurableObject extends DurableObject<Env> {
     payload: JoinPayload
   ): Promise<InviteAdmission> {
     if (creator) {
-      return { ok: true, newlyClaimed: false };
+      return { ok: true };
     }
 
     const invite = payload.inviteToken ? this.invites.get(payload.inviteToken) : undefined;
@@ -415,7 +407,7 @@ export class RoomDurableObject extends DurableObject<Env> {
 
     if (invite.consumedAt) {
       if (invite.consumedBySessionId === payload.sessionId) {
-        return { ok: true, invite, newlyClaimed: false };
+        return { ok: true, invite };
       }
       return {
         ok: false,
@@ -427,7 +419,7 @@ export class RoomDurableObject extends DurableObject<Env> {
 
     if (invite.claimedAt) {
       if (invite.claimedBySessionId === payload.sessionId) {
-        return { ok: true, invite, newlyClaimed: false };
+        return { ok: true, invite };
       }
       return {
         ok: false,
@@ -441,7 +433,7 @@ export class RoomDurableObject extends DurableObject<Env> {
     invite.claimedBySessionId = payload.sessionId;
     this.invites.set(invite.token, invite);
     await this.persistInvites();
-    return { ok: true, invite, newlyClaimed: true };
+    return { ok: true, invite };
   }
 
   private async handlePeerData(ws: WebSocket, payload: PeerDataRelayPayload): Promise<void> {
