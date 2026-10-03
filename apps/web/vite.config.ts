@@ -12,6 +12,11 @@ const WORKER_ORIGIN = process.env.WORKER_ORIGIN ?? "http://localhost:8799";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  build: {
+    // Never inline assets as data: URLs. The CSP only allows fonts from 'self', so an inlined
+    // font subset (Fontsource ships some under the 4 KiB default) would be blocked.
+    assetsInlineLimit: 0
+  },
   server: {
     port: 3000,
     proxy: {
