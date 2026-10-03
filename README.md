@@ -62,12 +62,12 @@ sequenceDiagram
   participant W as Worker
   participant R as Room Durable Object
   participant B as Guest browser
-  A->>A: generate room key, keep it in the #fragment
+  A->>A: generate room key, keep it in the URL fragment
   A->>W: POST /api/rooms (policy only, no key)
   W->>R: create room with vanish and idle timers
   A->>R: WebSocket join with creator token
   A->>W: POST /api/rooms/:id/invites
-  A-->>B: invite link over a channel you trust (key in the #fragment)
+  A-->>B: invite link over a channel you trust (key in the URL fragment)
   B->>R: WebSocket join, single-use invite claimed
   A->>B: membership changed: fresh key epoch wrapped per member (ECDH), relayed as ciphertext
   A->>R: AES-GCM message, signed
