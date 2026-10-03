@@ -1,0 +1,3 @@
+[install]
+# The workspaces were written for npm-style hoisting (shared tsc, vite, wrangler at the root).
+linker = "hoisted"

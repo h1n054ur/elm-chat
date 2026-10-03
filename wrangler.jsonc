@@ -7,6 +7,7 @@
   "main": "workers/api/src/index.ts",
   "compatibility_date": "2026-04-08",
   "compatibility_flags": ["nodejs_compat"],
+  "routes": [{ "pattern": "chat.h1n054ur.dev", "custom_domain": true }],
   "dev": {
     "port": 8799
   },

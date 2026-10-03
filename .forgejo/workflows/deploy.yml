@@ -1,0 +1,52 @@
+# Deploy to Cloudflare on push to main: install, build, `bun run deploy`, then a smoke check against the live
+# Worker. No dashboard git integration exists for Forgejo, so this workflow is the only deploy path.
+# CLOUDFLARE_API_TOKEN (secret) and CLOUDFLARE_ACCOUNT_ID (variable) are set on this repo.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: docker
+    container:
+      image: node:22-bookworm
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    env:
+      WORKER_URL: https://chat.h1n054ur.dev
+      WRANGLER_SEND_METRICS: "false"
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: https://data.forgejo.org/actions/checkout@v4
+      - uses: https://github.com/oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - name: Build
+        run: bun run build
+      - name: Deploy (checks, web build, wrangler deploy)
+        # The extra arguments land on `wrangler deploy`, the last command of the script, so the dashboard's
+        # Deployments list says which commit and run each version came from.
+        run: |
+          short="${GITHUB_SHA:0:12}"
+          subject=$(git log -1 --format=%s | cut -c1-60)
+          author=$(git log -1 --format=%an)
+          bun run deploy -- --tag "$short" --message "forgejo run ${{ github.run_number }} by $author: $subject"
+      - name: Smoke check (live /)
+        run: |
+          for i in $(seq 1 24); do
+            home=$(curl -s -o /dev/null -w '%{http_code}' "$WORKER_URL/" || true)
+            [ "$home" = 200 ] && { echo "live: / -> $home"; exit 0; }
+            sleep 5
+          done
+          echo "live Worker is not healthy: / -> $home"; exit 1

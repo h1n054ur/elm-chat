@@ -9,21 +9,21 @@
     "durable-objects/*"
   ],
   "scripts": {
-    "test": "npm run test:scripts && vitest run",
+    "test": "bun run test:scripts && vitest run",
     "test:scripts": "node --test scripts/tests/*.test.mjs",
-    "build": "npm run check:wrangler-configs && npm run check:growth-privacy && npm run check:message-protocol && npm run check:community-feed && npm run build --workspace @elm-chat/web && npm run check:security-copy && npm run build --workspace @elm-chat/api",
+    "build": "bun run check:wrangler-configs && bun run check:growth-privacy && bun run check:message-protocol && bun run check:community-feed && bun run --filter @elm-chat/web build && bun run check:security-copy && bun run --filter @elm-chat/api build",
     "check:wrangler-configs": "node scripts/check-wrangler-configs.mjs",
     "check:growth-privacy": "node scripts/check-growth-privacy.mjs",
     "check:message-protocol": "node scripts/check-message-protocol.mjs",
     "check:community-feed": "node scripts/check-community-feed.mjs",
     "check:security-copy": "node scripts/check-security-copy.mjs",
     "self-host:smoke-report": "node scripts/self-host-smoke-report.mjs",
-    "typecheck": "npm run typecheck --workspace @elm-chat/shared && npm run typecheck --workspace @elm-chat/crypto && npm run typecheck --workspace @elm-chat/web && npm run typecheck --workspace @elm-chat/api",
-    "dev": "concurrently -k -n api,web -c blue,green \"npm:dev:api\" \"npm:dev:web\"",
-    "dev:web": "npm run dev --workspace @elm-chat/web",
-    "dev:api": "npm run dev --workspace @elm-chat/api",
-    "deploy": "npm run check:wrangler-configs && npm run check:growth-privacy && npm run check:message-protocol && npm run check:community-feed && npm run build --workspace @elm-chat/web && npm run check:security-copy && CLOUDFLARE_ACCOUNT_ID=\"${ELM_CHAT_CLOUDFLARE_ACCOUNT_ID:-$CLOUDFLARE_ACCOUNT_ID}\" wrangler deploy -c wrangler.jsonc",
-    "deploy:production": "npm run check:wrangler-configs && npm run check:growth-privacy && npm run check:message-protocol && npm run check:community-feed && npm run build --workspace @elm-chat/web && npm run check:security-copy && npm run deploy --workspace @elm-chat/api"
+    "typecheck": "bun run --filter @elm-chat/shared typecheck && bun run --filter @elm-chat/crypto typecheck && bun run --filter @elm-chat/web typecheck && bun run --filter @elm-chat/api typecheck",
+    "dev": "concurrently -k -n api,web -c blue,green \"bun run dev:api\" \"bun run dev:web\"",
+    "dev:web": "bun run --filter @elm-chat/web dev",
+    "dev:api": "bun run --filter @elm-chat/api dev",
+    "deploy": "bun run check:wrangler-configs && bun run check:growth-privacy && bun run check:message-protocol && bun run check:community-feed && bun run --filter @elm-chat/web build && bun run check:security-copy && CLOUDFLARE_ACCOUNT_ID=\"${ELM_CHAT_CLOUDFLARE_ACCOUNT_ID:-$CLOUDFLARE_ACCOUNT_ID}\" wrangler deploy -c wrangler.jsonc",
+    "deploy:production": "bun run check:wrangler-configs && bun run check:growth-privacy && bun run check:message-protocol && bun run check:community-feed && bun run --filter @elm-chat/web build && bun run check:security-copy && bun run --filter @elm-chat/api deploy"
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.1.13",
