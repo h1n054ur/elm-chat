@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mock-up B: terminal identity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400..800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<style type="text/tailwindcss">
+  @custom-variant dark (&:where(.dark, .dark *));
+  @theme {
+    --font-mono: "JetBrains Mono", ui-monospace, monospace;
+    --color-neon: #39ff14;
+    --color-aqua: #00e5ff;
+  }
+  /* Light and dark surfaces as variables so every panel follows the theme. */
+  :root { --bg: #f4f6f2; --panel: #ffffff; --line: #cfd8cc; --fg: #101a12; --dim: #5b6b5e; --acc: #0a8a3a; --acc2: #007f99; }
+  .dark { --bg: #06090a; --panel: #0b1012; --line: #1d2a26; --fg: #d7e5dc; --dim: #6f8a7c; --acc: #39ff14; --acc2: #00e5ff; }
+  .grad { background-image: linear-gradient(90deg, var(--acc), var(--acc2)); }
+  .grad-text { background-image: linear-gradient(90deg, var(--acc), var(--acc2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .box { border: 1px solid var(--line); background: var(--panel); border-radius: 6px; position: relative; }
+  .box-title { position: absolute; top: -0.65em; left: 0.9rem; padding: 0 0.4rem; background: var(--panel); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+</style>
+<script>
+  const q = new URLSearchParams(location.search);
+  if (q.get('theme') === 'dark') document.documentElement.classList.add('dark');
+  addEventListener('DOMContentLoaded', () => {
+    const v = q.get('view') || 'landing';
+    document.querySelectorAll('[data-view]').forEach(el => el.hidden = el.dataset.view !== v);
+  });
+</script>
+</head>
+<body class="min-h-dvh bg-[var(--bg)] font-mono text-[var(--fg)] antialiased">
+<div class="grad h-0.5 w-full"></div>
+
+<!-- LANDING -->
+<main data-view="landing" class="mx-auto flex min-h-[calc(100dvh-2px)] max-w-5xl flex-col px-4 py-6 sm:px-8">
+  <header class="flex items-center justify-between text-sm">
+    <a class="font-bold tracking-tight"><span class="grad-text">h1n054ur</span><span class="text-[var(--dim)]">/</span>chat</a>
+    <nav class="flex gap-4 text-[var(--dim)]">
+      <a class="hover:text-[var(--fg)]">how</a><a class="hover:text-[var(--fg)]">limits</a><a class="hover:text-[var(--fg)]">source</a>
+    </nav>
+  </header>
+
+  <section class="grid flex-1 items-center gap-10 py-10 lg:grid-cols-[1.15fr_1fr]">
+    <div>
+      <h1 class="text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
+        rooms that<br><span class="grad-text">forget.</span>
+      </h1>
+      <p class="mt-6 max-w-md text-[15px] leading-relaxed text-[var(--dim)]">
+        End-to-end encrypted in the browser. No account, no username, no server transcript. One invite per person, and the room destroys itself.
+      </p>
+      <dl class="mt-8 grid max-w-md grid-cols-3 gap-px overflow-hidden rounded-md border border-[var(--line)] bg-[var(--line)] text-xs">
+        <div class="bg-[var(--panel)] p-3"><dt class="text-[var(--dim)]">cipher</dt><dd class="mt-1 font-semibold">AES-GCM</dd></div>
+        <div class="bg-[var(--panel)] p-3"><dt class="text-[var(--dim)]">key</dt><dd class="mt-1 font-semibold">#fragment</dd></div>
+        <div class="bg-[var(--panel)] p-3"><dt class="text-[var(--dim)]">files</dt><dd class="mt-1 font-semibold">25 MiB</dd></div>
+      </dl>
+    </div>
+
+    <form class="box p-6 pt-7">
+      <span class="box-title">new room</span>
+      <label class="block text-xs text-[var(--dim)]">messages vanish after</label>
+      <div class="mt-2 flex flex-wrap gap-2 text-sm">
+        <span class="rounded border border-[var(--line)] px-3 py-1.5 text-[var(--dim)]">1m</span>
+        <span class="rounded border border-[var(--acc)] px-3 py-1.5 font-semibold text-[var(--acc)]">7m</span>
+        <span class="rounded border border-[var(--line)] px-3 py-1.5 text-[var(--dim)]">1h</span>
+        <span class="rounded border border-[var(--line)] px-3 py-1.5 text-[var(--dim)]">1d</span>
+        <span class="rounded border border-[var(--line)] px-3 py-1.5 text-[var(--dim)]">never</span>
+      </div>
+      <label class="mt-6 block text-xs text-[var(--dim)]">room self-destructs after idle</label>
+      <div class="mt-2 flex flex-wrap gap-2 text-sm">
+        <span class="rounded border border-[var(--acc)] px-3 py-1.5 font-semibold text-[var(--acc)]">10m</span>
+        <span class="rounded border border-[var(--line)] px-3 py-1.5 text-[var(--dim)]">1h</span>
+        <span class="rounded border border-[var(--line)] px-3 py-1.5 text-[var(--dim)]">1d</span>
+        <span class="rounded border border-[var(--line)] px-3 py-1.5 text-[var(--dim)]">7d</span>
+        <span class="rounded border border-[var(--line)] px-3 py-1.5 text-[var(--dim)]">never</span>
+      </div>
+      <button type="button" class="grad mt-8 w-full rounded-md px-4 py-3 text-sm font-bold text-white dark:text-black">create room &rarr;</button>
+      <p class="mt-4 text-[11px] leading-relaxed text-[var(--dim)]">not independently audited &middot; the relay sees connection metadata</p>
+    </form>
+  </section>
+</main>
+
+<!-- ROOM -->
+<main data-view="room" class="mx-auto flex h-[calc(100dvh-2px)] max-w-5xl flex-col gap-4 px-3 py-4 sm:px-6">
+  <header class="box flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 text-sm">
+    <span class="box-title">room</span>
+    <span class="text-base font-bold">XYRktPfk</span>
+    <span class="flex items-center gap-1.5 text-xs"><span class="size-2 rounded-full bg-[var(--acc)] shadow-[0_0_8px_var(--acc)]"></span>connected</span>
+    <span class="text-xs text-[var(--dim)]">vanish <b class="text-[var(--fg)]">7m</b></span>
+    <span class="text-xs text-[var(--dim)]">ends <b class="text-[var(--fg)]">09:54</b></span>
+    <span class="flex items-center gap-1.5 text-xs text-[var(--dim)]">
+      <span class="size-2.5 rounded-sm bg-emerald-400"></span>you
+      <span class="ml-2 size-2.5 rounded-sm bg-fuchsia-500"></span>guest
+    </span>
+    <span class="ml-auto flex gap-2">
+      <button class="rounded border border-[var(--acc)] px-3 py-1.5 text-xs font-semibold text-[var(--acc)]">invite</button>
+      <button class="rounded border border-[var(--line)] px-3 py-1.5 text-xs text-[var(--dim)]">hide</button>
+      <button class="rounded border border-red-500/50 px-3 py-1.5 text-xs text-red-500">destroy</button>
+    </span>
+  </header>
+
+  <div class="grid min-h-0 flex-1 gap-4 lg:grid-cols-[1fr_17rem]">
+    <section class="box flex min-h-0 flex-col">
+      <span class="box-title">messages</span>
+      <div class="min-h-0 flex-1 space-y-3 overflow-y-auto p-4 pt-6 text-sm">
+        <p class="text-center text-[11px] text-[var(--dim)]">room created &middot; nothing is stored on the server</p>
+        <div class="ml-auto max-w-[80%] border-l-2 border-emerald-400 bg-emerald-400/10 px-3 py-2">
+          <div class="flex justify-between gap-4 text-[11px] text-[var(--dim)]"><span>you</span><span>09:01 &middot; -6:56</span></div>
+          <p class="mt-1">hey, is this the new chat?</p>
+        </div>
+        <div class="max-w-[80%] border-l-2 border-fuchsia-500 bg-fuchsia-500/10 px-3 py-2">
+          <div class="flex justify-between gap-4 text-[11px] text-[var(--dim)]"><span>guest</span><span>09:01 &middot; -6:57</span></div>
+          <p class="mt-1">yep, keys are in the URL fragment</p>
+        </div>
+        <div class="max-w-[80%] border-l-2 border-fuchsia-500 bg-fuchsia-500/10 px-3 py-2">
+          <div class="flex justify-between gap-4 text-[11px] text-[var(--dim)]"><span>guest &middot; file</span><span>09:01</span></div>
+          <div class="mt-1 flex items-center gap-3"><span class="truncate">contract-v2.pdf</span><span class="whitespace-nowrap text-[var(--dim)]">1.2 MiB</span><button class="ml-auto rounded border border-[var(--acc2)] px-2 py-0.5 text-xs text-[var(--acc2)]">get</button></div>
+        </div>
+        <div class="ml-auto max-w-[80%] border-l-2 border-emerald-400 bg-emerald-400/10 px-3 py-2">
+          <div class="flex justify-between gap-4 text-[11px] text-[var(--dim)]"><span>you</span><span>09:02 &middot; -6:59</span></div>
+          <p class="mt-1">nice. destroy when done</p>
+        </div>
+      </div>
+      <form class="flex items-end gap-2 border-t border-[var(--line)] p-3">
+        <button type="button" class="rounded border border-[var(--line)] px-2.5 py-2 text-xs text-[var(--dim)]">+file</button>
+        <textarea rows="1" placeholder="encrypted message" class="min-h-9 flex-1 resize-none bg-transparent px-1 py-2 text-sm outline-none placeholder:text-[var(--dim)]"></textarea>
+        <button type="button" class="grad rounded px-3 py-2 text-xs font-bold text-white dark:text-black">send</button>
+      </form>
+    </section>
+
+    <aside class="box hidden p-4 pt-6 text-xs lg:block">
+      <span class="box-title">invites</span>
+      <p class="text-[var(--dim)]">single use, one person each</p>
+      <ul class="mt-4 space-y-3">
+        <li class="flex items-center gap-2"><span class="size-2 rounded-sm bg-fuchsia-500"></span>guest joined<button class="ml-auto text-[var(--dim)] hover:text-red-500">remove</button></li>
+        <li class="flex items-center gap-2"><span class="size-2 rounded-sm border border-[var(--dim)]"></span>unused &middot; 09:59<button class="ml-auto text-[var(--acc2)]">copy</button><button class="text-[var(--dim)]">revoke</button></li>
+      </ul>
+      <div class="mt-6 border-t border-[var(--line)] pt-4 text-[var(--dim)]">
+        <p>new invite expires in</p>
+        <div class="mt-2 flex gap-2"><span class="rounded border border-[var(--acc)] px-2 py-1 text-[var(--acc)]">10m</span><span class="rounded border border-[var(--line)] px-2 py-1">1h</span><span class="rounded border border-[var(--line)] px-2 py-1">1d</span></div>
+      </div>
+    </aside>
+  </div>
+</main>
+</body>
+</html>

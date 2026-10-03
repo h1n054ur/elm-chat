@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mock-up C: messenger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<style type="text/tailwindcss">
+  @custom-variant dark (&:where(.dark, .dark *));
+  @theme { --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif; }
+</style>
+<script>
+  const q = new URLSearchParams(location.search);
+  if (q.get('theme') === 'dark') document.documentElement.classList.add('dark');
+  addEventListener('DOMContentLoaded', () => {
+    const v = q.get('view') || 'landing';
+    document.querySelectorAll('[data-view]').forEach(el => el.hidden = el.dataset.view !== v);
+  });
+</script>
+</head>
+<body class="min-h-dvh bg-zinc-100 font-sans text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100">
+
+<!-- LANDING -->
+<main data-view="landing" class="grid min-h-dvh place-items-center px-4 py-8">
+  <div class="w-full max-w-md">
+    <div class="mb-6 flex items-center justify-center gap-2 text-sm font-semibold">
+      <span class="grid size-7 place-items-center rounded-md bg-zinc-900 text-white dark:bg-white dark:text-zinc-900">
+        <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+      </span>
+      chat.h1n054ur.dev
+    </div>
+    <div class="rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+      <div class="p-6">
+        <h1 class="text-2xl font-semibold tracking-tight">Start a private room</h1>
+        <p class="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">Encrypted in your browser. Nothing is kept on the server, and the room ends on its own.</p>
+
+        <div class="mt-6 space-y-4">
+          <div class="flex items-center justify-between gap-4">
+            <label class="text-sm font-medium">Messages vanish</label>
+            <select class="h-9 w-36 rounded-md border border-zinc-200 bg-transparent px-3 text-sm dark:border-zinc-700"><option>after 7 minutes</option></select>
+          </div>
+          <div class="flex items-center justify-between gap-4">
+            <label class="text-sm font-medium">Room ends</label>
+            <select class="h-9 w-36 rounded-md border border-zinc-200 bg-transparent px-3 text-sm dark:border-zinc-700"><option>10 min idle</option></select>
+          </div>
+        </div>
+
+        <button type="button" class="mt-6 h-10 w-full rounded-md bg-zinc-900 text-sm font-medium text-white hover:bg-zinc-800 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200">Create room</button>
+      </div>
+      <div class="grid grid-cols-3 divide-x divide-zinc-200 border-t border-zinc-200 text-center text-xs text-zinc-500 dark:divide-zinc-800 dark:border-zinc-800 dark:text-zinc-400">
+        <div class="p-3"><b class="block text-zinc-900 dark:text-zinc-100">No account</b>color identity</div>
+        <div class="p-3"><b class="block text-zinc-900 dark:text-zinc-100">1 invite</b>per person</div>
+        <div class="p-3"><b class="block text-zinc-900 dark:text-zinc-100">25 MiB</b>encrypted files</div>
+      </div>
+    </div>
+    <p class="mt-4 text-center text-xs text-zinc-500">Not independently audited. <a class="underline underline-offset-2">Limits</a> &middot; <a class="underline underline-offset-2">Source</a></p>
+  </div>
+</main>
+
+<!-- ROOM -->
+<main data-view="room" class="flex h-dvh">
+  <aside class="hidden w-72 shrink-0 flex-col border-r border-zinc-200 bg-white md:flex dark:border-zinc-800 dark:bg-zinc-900">
+    <div class="border-b border-zinc-200 p-4 dark:border-zinc-800">
+      <p class="text-xs text-zinc-500">Room</p>
+      <p class="text-lg font-semibold tracking-tight">XYRktPfk</p>
+      <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
+        <div class="rounded-md bg-zinc-100 p-2 dark:bg-zinc-800"><p class="text-zinc-500">Vanish</p><p class="font-medium">7 min</p></div>
+        <div class="rounded-md bg-zinc-100 p-2 dark:bg-zinc-800"><p class="text-zinc-500">Ends in</p><p class="font-medium tabular-nums">9:54</p></div>
+      </div>
+    </div>
+    <div class="p-4">
+      <p class="text-xs font-medium text-zinc-500">People &middot; 2</p>
+      <ul class="mt-2 space-y-1 text-sm">
+        <li class="flex items-center gap-2 rounded-md px-2 py-1.5"><span class="size-2.5 rounded-full bg-emerald-500"></span>You<span class="ml-auto text-xs text-zinc-500">creator</span></li>
+        <li class="group flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800"><span class="size-2.5 rounded-full bg-fuchsia-500"></span>Guest<button class="ml-auto text-xs text-zinc-500 hover:text-red-600">Remove</button></li>
+      </ul>
+      <p class="mt-6 text-xs font-medium text-zinc-500">Invites</p>
+      <ul class="mt-2 space-y-1 text-sm">
+        <li class="flex items-center gap-2 rounded-md border border-dashed border-zinc-300 px-2 py-1.5 dark:border-zinc-700"><span class="text-zinc-500">Unused &middot; 9:59</span><button class="ml-auto text-xs font-medium">Copy</button><button class="text-xs text-zinc-500">Revoke</button></li>
+      </ul>
+      <button class="mt-3 h-9 w-full rounded-md border border-zinc-200 text-sm font-medium hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-800">+ New invite</button>
+    </div>
+    <div class="mt-auto space-y-2 border-t border-zinc-200 p-4 dark:border-zinc-800">
+      <button class="h-9 w-full rounded-md text-sm text-zinc-600 hover:bg-zinc-100 dark:text-zinc-300 dark:hover:bg-zinc-800">Hide conversation</button>
+      <button class="h-9 w-full rounded-md bg-red-600 text-sm font-medium text-white hover:bg-red-500">Destroy room</button>
+    </div>
+  </aside>
+
+  <section class="flex min-w-0 flex-1 flex-col">
+    <header class="flex h-14 items-center gap-3 border-b border-zinc-200 bg-white/80 px-4 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/80">
+      <div class="md:hidden">
+        <p class="text-sm font-semibold">XYRktPfk</p>
+        <p class="text-xs text-zinc-500">2 people &middot; ends 9:54</p>
+      </div>
+      <span class="hidden items-center gap-1.5 text-sm md:flex"><span class="size-2 rounded-full bg-emerald-500"></span>Connected &middot; end-to-end encrypted</span>
+      <button class="ml-auto h-8 rounded-md bg-zinc-900 px-3 text-xs font-medium text-white md:hidden dark:bg-white dark:text-zinc-900">Invite</button>
+      <button aria-label="Room details" class="grid size-8 place-items-center rounded-md border border-zinc-200 md:hidden dark:border-zinc-700">
+        <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      </button>
+    </header>
+
+    <div class="min-h-0 flex-1 overflow-y-auto">
+      <div class="mx-auto max-w-2xl space-y-1 px-4 py-6">
+        <p class="pb-4 text-center text-xs text-zinc-500">Today &middot; messages vanish 7 minutes after sending</p>
+        <div class="flex justify-end"><div class="max-w-[78%] rounded-2xl bg-zinc-900 px-3.5 py-2 text-sm text-white dark:bg-white dark:text-zinc-900">hey, is this the new chat?</div></div>
+        <p class="pb-3 text-right text-[11px] text-zinc-500">9:01 &middot; 6:56 left</p>
+        <div class="flex items-end gap-2"><span class="size-6 shrink-0 rounded-full bg-fuchsia-500"></span><div class="max-w-[78%] rounded-2xl bg-white px-3.5 py-2 text-sm shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-700">yep, keys are in the URL fragment</div></div>
+        <div class="flex items-end gap-2 pt-1"><span class="size-6 shrink-0"></span>
+          <div class="flex w-64 items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm ring-1 ring-zinc-200 dark:bg-zinc-800 dark:ring-zinc-700">
+            <span class="grid size-9 place-items-center rounded-lg bg-zinc-100 dark:bg-zinc-700"><svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/></svg></span>
+            <div class="min-w-0 flex-1"><p class="truncate text-sm font-medium">contract-v2.pdf</p><p class="text-xs text-zinc-500">1.2 MiB</p></div>
+            <button class="h-7 rounded-md border border-zinc-200 px-2 text-xs dark:border-zinc-600">Get</button>
+          </div>
+        </div>
+        <p class="pb-3 pl-8 text-[11px] text-zinc-500">Guest &middot; 9:01 &middot; 6:57 left</p>
+        <div class="flex justify-end"><div class="max-w-[78%] rounded-2xl bg-zinc-900 px-3.5 py-2 text-sm text-white dark:bg-white dark:text-zinc-900">nice. destroy when done</div></div>
+        <p class="text-right text-[11px] text-zinc-500">9:02 &middot; 6:59 left</p>
+      </div>
+    </div>
+
+    <form class="border-t border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+      <div class="mx-auto flex max-w-2xl items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 p-1.5 focus-within:ring-2 focus-within:ring-zinc-400/40 dark:border-zinc-700 dark:bg-zinc-950">
+        <button type="button" aria-label="Attach file" class="grid size-8 place-items-center rounded-lg text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-800">
+          <svg viewBox="0 0 24 24" class="size-4" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+        <input placeholder="Encrypted message" class="h-8 flex-1 bg-transparent text-sm outline-none placeholder:text-zinc-500">
+        <button type="button" class="h-8 rounded-lg bg-zinc-900 px-3 text-xs font-medium text-white dark:bg-white dark:text-zinc-900">Send</button>
+      </div>
+    </form>
+  </section>
+</main>
+</body>
+</html>
