@@ -156,7 +156,7 @@ try {
     check(await guest.locator('.concealed-conversation').count()===0);check(await show.count()===0);
   });
   await step('real message and file expiry continue while hidden',async()=>{
-    await creator.goto(origin.href);await creator.getByRole('spinbutton',{name:'Message vanish duration',exact:true}).fill('0.1');
+    await creator.goto(origin.href);await creator.getByRole('button',{name:'custom',exact:true}).first().click();await creator.getByRole('spinbutton',{name:'Message vanish duration',exact:true}).fill('0.1');
     await creator.getByRole('button',{name:'Create private conversation',exact:true}).click();await ready(creator);
     roomId=new URL(creator.url()).pathname.split('/').pop();await guest.goto(await invite());await ready(guest);
     await send('Hidden synthetic message expiring');

@@ -13,7 +13,7 @@ npm ci
 npm run build
 env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID WRANGLER_SEND_METRICS=false \
   npx wrangler dev --config wrangler.jsonc --local --ip 127.0.0.1 \
-  --port 5227 --inspector-port 9327 --persist-to /tmp/elm-file-focus-test
+  --port 5227 --inspector-port 9327 --local-upstream 127.0.0.1:5227 --persist-to /tmp/elm-file-focus-test
 ```
 
 Run the checked-in harness with a separately installed Playwright and browser. Omit path overrides to use normal Playwright resolution and its installed browser:

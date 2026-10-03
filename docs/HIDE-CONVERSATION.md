@@ -17,7 +17,7 @@ npm ci
 npm run build
 env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID WRANGLER_SEND_METRICS=false \
   npx wrangler dev --config wrangler.jsonc --local --ip 127.0.0.1 \
-  --port 54561 --inspector-port 54562 --persist-to /tmp/elm-hide-test --log-level none
+  --port 54561 --inspector-port 54562 --local-upstream 127.0.0.1:54561 --persist-to /tmp/elm-hide-test --log-level none
 ```
 
 The opt-in browser fixture requires separately installed Playwright and Chrome (omit path overrides to use normal Playwright resolution and its installed browser). Run both `TEST_LOCALE=en-US` and `TEST_LOCALE=es-ES`:

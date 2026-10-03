@@ -18,7 +18,9 @@ export default defineConfig({
       "/api": {
         target: WORKER_ORIGIN,
         // Keep the original Host header (localhost:3000) so the Worker builds
-        // room/invite URLs on the dev-server origin instead of its own :8787.
+        // room/invite URLs on the dev-server origin instead of its own :8799.
+        // `dev:api` passes --local-upstream localhost:3000 for the same reason:
+        // the custom-domain route would otherwise rewrite Host to chat.h1n054ur.dev.
         changeOrigin: false,
         ws: true
       }

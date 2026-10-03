@@ -45,33 +45,6 @@ function withSecurityHeaders(response: Response): Response {
   });
 }
 
-function canonicalOriginRedirect(request: Request): Response | null {
-  const url = new URL(request.url);
-  const requestHost = (request.headers.get("host") ?? url.hostname)
-    .split(":", 1)[0]
-    .toLowerCase();
-  const forwardedProtocol = request.headers.get("x-forwarded-proto")?.toLowerCase();
-  const requestProtocol =
-    forwardedProtocol === "http" || forwardedProtocol === "https"
-      ? forwardedProtocol
-      : url.protocol.slice(0, -1);
-  const isElmChatHost = requestHost === "elm.chat" || requestHost === "www.elm.chat";
-  if (!isElmChatHost || (requestProtocol === "https" && requestHost === "elm.chat")) {
-    return null;
-  }
-
-  url.protocol = "https:";
-  url.hostname = "elm.chat";
-  url.port = "";
-  return new Response(null, {
-    status: 308,
-    headers: {
-      location: url.toString(),
-      "cache-control": "public, max-age=86400"
-    }
-  });
-}
-
 function isWebSocketUpgrade(request: Request): boolean {
   return request.headers.get("Upgrade")?.toLowerCase() === "websocket";
 }
@@ -272,11 +245,6 @@ function routeApi(request: Request, env: Env): Promise<Response> {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
-    const redirect = canonicalOriginRedirect(request);
-    if (redirect) {
-      return withSecurityHeaders(redirect);
-    }
-
     if (url.pathname.startsWith("/api/")) {
       try {
         const response = await routeApi(request, env);

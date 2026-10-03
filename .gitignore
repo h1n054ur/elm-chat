@@ -8,3 +8,6 @@ agents.md
 
 # Internal go-to-market / growth strategy — kept local, not published
 gtm/
+
+# Agent worktrees
+.claude/worktrees/

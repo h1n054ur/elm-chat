@@ -18,86 +18,10 @@ export const FILE_CHUNK_BYTES = 64 * 1024;
 
 export type RoomStatus = "open" | "expired" | "destroyed";
 
-export const MARKETING_ACQUISITION_SOURCES = [
-  "self-destructing-chat",
-  "send-a-password-securely",
-  "send-a-file-securely",
-  "one-time-secret-chat",
-  "temporary-private-chat",
-  "journalist-source-communication",
-  "temporary-financial-handoff",
-  "security-and-limitations",
-  "press",
-  "the-internet-needs-places-that-forget",
-  "why-i-built-elm-chat",
-  "deletion-distributed-systems-contract",
-  "building-ephemeral-chat-cloudflare",
-  "durable-objects-websocket-hibernation",
-  "cloudflare-deploy-button-monorepo",
-  "single-use-invite-links"
-] as const;
-
-export const EXTERNAL_ACQUISITION_SOURCES = [
-  "awesome-cloudflare",
-  "dev-community",
-  "devopsish",
-  "freshcode",
-  "free-startup-listing",
-  "github-discussion",
-  "github-readme",
-  "hashnode",
-  "high-scalability",
-  "llms-txt",
-  "linuxlinks",
-  "linkedin",
-  "reddit-cloudflare",
-  "reddit-selfhosted",
-  "sre-weekly",
-  "zearches"
-] as const;
-
-export const ACQUISITION_SOURCES = [
-  "invite",
-  ...MARKETING_ACQUISITION_SOURCES,
-  ...EXTERNAL_ACQUISITION_SOURCES
-] as const;
-
-export type AcquisitionSource = (typeof ACQUISITION_SOURCES)[number];
-export type MarketingAcquisitionSource =
-  (typeof MARKETING_ACQUISITION_SOURCES)[number];
-export type ExternalAcquisitionSource = (typeof EXTERNAL_ACQUISITION_SOURCES)[number];
-export type NonInviteAcquisitionSource = Exclude<AcquisitionSource, "invite">;
-
-export function isAcquisitionSource(value: unknown): value is AcquisitionSource {
-  return (
-    typeof value === "string" &&
-    (ACQUISITION_SOURCES as readonly string[]).includes(value)
-  );
-}
-
-export function isMarketingAcquisitionSource(
-  value: unknown
-): value is MarketingAcquisitionSource {
-  return (
-    typeof value === "string" &&
-    (MARKETING_ACQUISITION_SOURCES as readonly string[]).includes(value)
-  );
-}
-
-export function isExternalAcquisitionSource(
-  value: unknown
-): value is ExternalAcquisitionSource {
-  return (
-    typeof value === "string" &&
-    (EXTERNAL_ACQUISITION_SOURCES as readonly string[]).includes(value)
-  );
-}
-
 export interface CreateRoomRequest {
   disappearAfterReadSeconds?: number | null;
   inactivityTimeoutMs?: number | null;
   maxAgeMs?: number | null;
-  acquisitionSource?: AcquisitionSource;
   turnstileToken?: string;
 }
 

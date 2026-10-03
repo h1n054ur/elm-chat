@@ -21,7 +21,7 @@ Start the self-host configuration in a dedicated terminal:
 ```sh
 env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID WRANGLER_SEND_METRICS=false \
   npx wrangler dev --config wrangler.jsonc --local --ip 127.0.0.1 \
-  --port 5210 --inspector-port 9310 --persist-to .wrangler/local-smoke --log-level none
+  --port 5210 --inspector-port 9310 --local-upstream 127.0.0.1:5210 --persist-to .wrangler/local-smoke --log-level none
 ```
 
 After the local server starts, run in another terminal:

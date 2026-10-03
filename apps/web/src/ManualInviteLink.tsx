@@ -31,14 +31,16 @@ export function ManualInviteLink({ url, trigger, focusOwner, fallbackTrigger, on
   }, [trigger, focusOwner, fallbackTrigger]);
 
   return (
-    <div className="manual-invite" ref={panel} onKeyDown={(event) => {
+    <div className="manual-invite grid min-w-0 gap-2 rounded border border-acc2/50 p-3 text-xs" ref={panel} onKeyDown={(event) => {
       if (event.key === "Escape") { event.preventDefault(); onDismiss(); }
     }}>
-      <label htmlFor={id}>{t("manualInviteLabel")}</label>
-      <p id={`${id}-help`}>{t("manualInviteHelp")}</p>
+      <label className="font-semibold lowercase text-acc2" htmlFor={id}>{t("manualInviteLabel")}</label>
+      <p className="text-dim" id={`${id}-help`}>{t("manualInviteHelp")}</p>
       <input id={id} aria-describedby={`${id}-help`} autoComplete="off" spellCheck={false}
+        className="w-full min-w-0 rounded border border-line bg-bg px-2 py-2 text-xs text-fg focus-visible:border-acc2 focus-visible:outline-none"
         readOnly ref={field} value={url} onFocus={(event) => event.currentTarget.select()} />
-      <button className="secondary-button" type="button" onClick={onDismiss}>{t("dismissManualInvite")}</button>
+      <button className="justify-self-start rounded border border-line px-3 py-1.5 text-xs lowercase text-dim hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acc"
+        type="button" onClick={onDismiss}>{t("dismissManualInvite")}</button>
     </div>
   );
 }

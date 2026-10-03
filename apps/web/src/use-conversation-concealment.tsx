@@ -32,17 +32,21 @@ export function useConversationConcealment(onHide: () => void) {
     setHidden(false);
   }
 
-  const control = <button className="secondary-button" ref={hideButton} type="button"
-    onClick={() => changeVisibility(true)}>{t("hideConversation")}</button>;
+  const control = <button aria-label={t("hideConversation")}
+    className="rounded border border-line px-3 py-1.5 text-xs lowercase text-dim hover:text-fg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acc"
+    ref={hideButton} type="button" onClick={() => changeVisibility(true)}>{t("hideShort")}</button>;
 
-  const screen = hidden ? <main className="room-shell room-shell-centered concealed-conversation">
-    <section className="access-screen" aria-labelledby="concealed-title">
-      <p className="eyebrow">elm chat</p>
-      <h1 id="concealed-title" className="access-title">{t("conversationHidden")}</h1>
-      <p className="access-copy">{t("concealmentHint")}</p>
-      <button className="primary-button" ref={showButton} type="button"
-        onClick={() => changeVisibility(false)}>{t("showConversation")}</button>
-    </section>
+  const screen = hidden ? <main className="concealed-conversation flex min-h-dvh flex-col">
+    <div aria-hidden="true" className="grad h-0.5 w-full flex-none" />
+    <div className="flex flex-1 items-center justify-center px-4 py-8">
+      <section className="box w-full max-w-md px-6 pb-6 pt-8" aria-labelledby="concealed-title">
+        <span className="box-title">{t("hiddenBoxTitle")}</span>
+        <h1 id="concealed-title" className="text-lg font-bold">{t("conversationHidden")}</h1>
+        <p className="mt-3 text-sm text-dim">{t("concealmentHint")}</p>
+        <button className="grad mt-6 w-full rounded-md px-4 py-3 text-sm font-bold lowercase focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acc"
+          ref={showButton} type="button" onClick={() => changeVisibility(false)}>{t("showConversation")}</button>
+      </section>
+    </div>
   </main> : null;
 
   return { hidden, control, screen, reset };

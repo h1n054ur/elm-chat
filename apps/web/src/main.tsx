@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { App } from "./App";
+import { FOCUS_RING, TopRule } from "./LimitsPage";
 import "./theme.css";
 
 type RootBoundaryState = {
@@ -15,26 +16,30 @@ class RootBoundary extends React.Component<React.PropsWithChildren, RootBoundary
   }
 
   componentDidCatch(error: Error): void {
-    console.error("elm.chat render crash", error);
+    console.error("chat render crash", error);
   }
 
   render() {
     if (this.state.error) {
       return (
-        <main className="room-shell room-shell-centered" lang="en">
-          <section className="access-screen" aria-live="polite">
-            <p className="eyebrow">elm chat</p>
-            <h1 className="access-title">Could not open this session</h1>
-            <p className="access-copy">
-              The app hit a browser error while opening this room. Reload once. If it still fails,
-              go back home and create a fresh invite.
-            </p>
-            <p className="error-text access-copy">{this.state.error.message}</p>
-            <a className="secondary-button access-home-link" href="/">
-              Back to home
-            </a>
-          </section>
-        </main>
+        <>
+          <TopRule />
+          <main className="flex min-h-[calc(100dvh-2px)] items-center justify-center px-4 py-10" lang="en">
+            <section aria-live="polite" className="box w-full max-w-md p-6 pt-7">
+              <span className="box-title">error</span>
+              <h1 className="text-xl font-bold tracking-tight">Could not open this session</h1>
+              <p className="mt-3 text-sm leading-relaxed text-dim">
+                The app hit a browser error while opening this room. Reload once. If it still fails,
+                go back home and create a fresh invite.
+              </p>
+              <p className="error-text mt-3 break-words text-xs text-danger">{this.state.error.message}</p>
+              <a className={`mt-6 inline-block rounded-sm text-sm text-acc hover:text-fg ${FOCUS_RING}`} href="/">
+                <span aria-hidden="true">&larr; </span>
+                back home
+              </a>
+            </section>
+          </main>
+        </>
       );
     }
 

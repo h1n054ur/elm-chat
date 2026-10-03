@@ -3,7 +3,7 @@
   "tasks": [
     {
       "label": "dev:api",
-      "detail": "Cloudflare Worker + Durable Object (wrangler dev on :8787)",
+      "detail": "Cloudflare Worker + Durable Object (wrangler dev on :8799)",
       "type": "shell",
       "command": "npm run dev:api",
       "isBackground": true,

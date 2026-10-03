@@ -24,8 +24,6 @@ import {
 import {
   FILE_CHUNK_BYTES,
   MESSAGE_PROTOCOL_VERSION,
-  isAcquisitionSource,
-  isMarketingAcquisitionSource,
   MAX_FILE_BYTES,
   MAX_TRANSCRIPT_SYNC_MESSAGES,
   type CreateRoomRequest,
@@ -41,9 +39,8 @@ import {
   type ServerEvent,
 } from "@elm-chat/shared";
 import { startTransition, useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
-import { recordGrowthEvent, resolveExternalAcquisitionSource } from "./growth";
-import { MarketingPage, type MarketingSlug } from "./MarketingPage";
-import { locale, t } from "./localization";
+import { FOCUS_RING, LimitsPage, SiteHeader, TopRule } from "./LimitsPage";
+import { locale, t, type MessageKey } from "./localization";
 import { InvalidMessageEnvelopeError, receiveTextMessage } from "./message-receive";
 import { ReplayGuard } from "./replay";
 import { handleComposerKeyDown } from "./composer";
@@ -55,7 +52,7 @@ import { useConversationScroll } from "./use-conversation-scroll";
 import { useConversationFind } from "./use-conversation-find";
 import { useConversationConcealment } from "./use-conversation-concealment";
 
-type View = "landing" | "marketing" | "room";
+type View = "landing" | "limits" | "room";
 
 type FileTransferState =
   | "offered"
@@ -115,28 +112,13 @@ type InviteDurationDraft = {
   unit: DurationUnit;
 };
 
-type CommunityIssue = {
-  number: number;
-  title: string;
-  url: string;
-  date: string;
-};
-
-type CommunityFeed = {
-  fixes: CommunityIssue[];
-  requests: CommunityIssue[];
-};
-
-type DurationKind = "message" | "room";
-
-function roomPathname(): { view: View; roomId?: string; marketingSlug?: MarketingSlug } {
+function roomPathname(): { view: View; roomId?: string } {
   const match = window.location.pathname.match(/^\/c\/([^/]+)$/);
   if (match) {
     return { view: "room", roomId: match[1] };
   }
-  const marketingSlug = window.location.pathname.replace(/^\/|\/$/g, "");
-  if (isMarketingAcquisitionSource(marketingSlug)) {
-    return { view: "marketing", marketingSlug };
+  if (/^\/limits\/?$/.test(window.location.pathname)) {
+    return { view: "limits" };
   }
   return { view: "landing" };
 }
@@ -197,16 +179,6 @@ function formatBytes(bytes: number): string {
     unitIndex += 1;
   }
   return `${value.toFixed(value >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
-}
-
-const GITHUB_URL = "https://github.com/shawnbure/elm-chat";
-
-function formatCount(value: number): string {
-  if (value < 1000) {
-    return String(value);
-  }
-  const thousands = value / 1000;
-  return `${thousands.toFixed(thousands < 10 ? 1 : 0).replace(/\.0$/, "")}k`;
 }
 
 function creatorTokenKey(roomId: string): string {
@@ -405,7 +377,7 @@ function loadTurnstileScript(): Promise<void> {
 
 // Runs an invisible Turnstile challenge when a site key is configured. Returns
 // the token, or undefined when Turnstile is not configured (local dev) or the
-// challenge could not run — the server decides whether a token is required.
+// challenge could not run: the server decides whether a token is required.
 async function getTurnstileToken(): Promise<string | undefined> {
   const siteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY;
   if (!siteKey) {
@@ -571,23 +543,21 @@ function inviteColor(invite: RoomInvite): string {
   return colorFromSessionId(invite.consumedBySessionId ?? invite.token);
 }
 
-function bubbleStyle(sessionId: string, mine: boolean): CSSProperties {
+// Look B message row: a left bar in the sender's identity colour over a 10% tint of it.
+function bubbleStyle(sessionId: string): CSSProperties {
   const color = colorFromSessionId(sessionId);
   return {
-    "--bubble-accent": color,
-    "--bubble-surface": mine ? color : `color-mix(in srgb, ${color}, white 88%)`,
-    "--bubble-surface-border": `color-mix(in srgb, ${color}, white 58%)`,
-    "--bubble-text": mine ? "#fffaf3" : "var(--ink)"
-  } as CSSProperties;
+    borderLeftColor: color,
+    backgroundColor: `color-mix(in srgb, ${color} 10%, transparent)`
+  };
 }
 
+// Joined invites show their guest's identity square; unused ones show an empty outline.
 function inviteAccentStyle(invite: RoomInvite): CSSProperties | undefined {
-  const color = inviteColor(invite);
-  return {
-    "--invite-accent": color,
-    "--invite-surface": `color-mix(in srgb, ${color}, white 84%)`,
-    "--invite-border": `color-mix(in srgb, ${color}, white 56%)`
-  } as CSSProperties;
+  if (!(invite.consumedAt || invite.admittedAt || invite.consumedBySessionId)) {
+    return undefined;
+  }
+  return { backgroundColor: inviteColor(invite) };
 }
 
 function inviteStatusLabel(invite: RoomInvite): string {
@@ -627,32 +597,35 @@ function roomStateMessage(status: RoomMetadata["status"], reason?: string): stri
   }
 }
 
-function recordMakeYourOwnClick() {
-  recordGrowthEvent("make_your_own_clicked");
-}
+type RecoveryFocusTarget = { focusRef?: React.RefCallback<HTMLElement> };
 
-// Privacy-safe growth callout for an invite recipient. The aggregate event
-// records no room, invite, participant, or message identifier.
-function MakeYourOwnCallout({ compact = false }: { compact?: boolean }) {
+const STATE_TITLE = "text-xl font-bold tracking-tight outline-none";
+const STATE_COPY = "mt-3 text-sm leading-relaxed text-dim";
+const STATE_LINK = `mt-6 inline-block rounded-sm text-sm text-acc hover:text-fg ${FOCUS_RING}`;
+
+// Centered look-B box shared by the full-screen invite and room states.
+function StateScreen({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <p className={`make-your-own ${compact ? "make-your-own-compact" : ""}`}>
-      {compact
-        ? t("tryInvite")
-        : t("madeWith")}
-      <a
-        className="make-your-own-link"
-        href="/?source=invite"
-        onClick={recordMakeYourOwnClick}
-        rel={compact ? "noreferrer" : undefined}
-        target={compact ? "_blank" : undefined}
-      >
-        {t("makeYourOwn")}
-      </a>
-    </p>
+    <>
+      <TopRule />
+      <main className="flex min-h-[calc(100dvh-2px)] items-center justify-center px-4 py-10">
+        <section aria-live="polite" className="box w-full max-w-md p-6 pt-7">
+          <span className="box-title">{label}</span>
+          {children}
+        </section>
+      </main>
+    </>
   );
 }
 
-type RecoveryFocusTarget = { focusRef?: React.RefCallback<HTMLElement> };
+function BackHomeLink() {
+  return (
+    <a className={STATE_LINK} href="/">
+      <span aria-hidden="true">&larr; </span>
+      {t("backHomeShort")}
+    </a>
+  );
+}
 
 function InvalidInviteScreen({ reason, focusRef }: { reason: InviteAccess } & RecoveryFocusTarget) {
   const copy =
@@ -662,49 +635,21 @@ function InvalidInviteScreen({ reason, focusRef }: { reason: InviteAccess } & Re
         ? t("inviteUsed")
         : t("inviteInvalid");
   return (
-    <main className="room-shell room-shell-centered">
-      <section className="access-screen" aria-live="polite">
-        <p className="eyebrow">elm chat</p>
-        <h1 className="access-title" ref={focusRef} tabIndex={-1}>{t("invalidLink")}</h1>
-        <p className="access-copy">{copy}</p>
-        <a
-          className="secondary-button access-home-link"
-          href="/?source=invite"
-          onClick={recordMakeYourOwnClick}
-        >
-          {t("backHome")}
-        </a>
-        <MakeYourOwnCallout />
-      </section>
-    </main>
+    <StateScreen label={t("boxInvite")}>
+      <h1 className={STATE_TITLE} ref={focusRef} tabIndex={-1}>{t("invalidLink")}</h1>
+      <p className={STATE_COPY}>{copy}</p>
+      <BackHomeLink />
+    </StateScreen>
   );
 }
 
 function RemovedFromRoomScreen({ focusRef }: RecoveryFocusTarget) {
   return (
-    <main className="room-shell room-shell-centered">
-      <section className="access-screen" aria-live="polite">
-        <p className="eyebrow">elm chat</p>
-        <h1 className="access-title" ref={focusRef} tabIndex={-1}>{t("removedTitle")}</h1>
-        <p className="access-copy">{t("removedCopy")}</p>
-        <a
-          className="secondary-button access-home-link"
-          href="/?source=invite"
-          onClick={recordMakeYourOwnClick}
-        >
-          {t("backHome")}
-        </a>
-        <MakeYourOwnCallout />
-      </section>
-    </main>
-  );
-}
-
-function GithubMark({ size = 16 }: { size?: number }) {
-  return (
-    <svg aria-hidden="true" fill="currentColor" height={size} viewBox="0 0 16 16" width={size}>
-      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 012-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z" />
-    </svg>
+    <StateScreen label={t("boxRoom")}>
+      <h1 className={STATE_TITLE} ref={focusRef} tabIndex={-1}>{t("removedTitle")}</h1>
+      <p className={STATE_COPY}>{t("removedCopy")}</p>
+      <BackHomeLink />
+    </StateScreen>
   );
 }
 
@@ -713,25 +658,24 @@ function FileCard({ file, onDownload }: { file: UiFile; onDownload: () => void }
   const progress = file.progress ?? 0;
   const percent = Number.isFinite(progress) ? Math.round(Math.min(1, Math.max(0, progress)) * 100) : 0;
   return (
-    <div aria-label={t("fileCardLabel", { name: file.name })} className="file-card" ref={cardRef} role="group" tabIndex={-1}>
-      <div className="file-card-head">
-        <span className="file-icon" aria-hidden="true">
-          &#128206;
-        </span>
-        <div className="file-meta">
-          <span className="file-name">{file.name}</span>
-          <span className="file-size">{formatBytes(file.size)}</span>
-        </div>
-      </div>
+    <div
+      aria-label={t("fileCardLabel", { name: file.name })}
+      className="file-card mt-1 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-acc"
+      ref={cardRef}
+      role="group"
+      tabIndex={-1}
+    >
+      <span className="file-name min-w-0 truncate">{file.name}</span>
+      <span className="file-size whitespace-nowrap text-dim">{formatBytes(file.size)}</span>
       {file.outgoing ? (
-        <span className="file-status">{t("fileShared")}</span>
+        <span className="file-status ml-auto text-xs text-dim">{t("fileSharedNote")}</span>
       ) : file.state === "offered" ? (
-        <button aria-label={t("downloadFileLabel", { name: file.name })} className="secondary-button file-action" onClick={(event) => {
+        <button aria-label={t("downloadFileLabel", { name: file.name })} className={`file-action ml-auto ${roomButtonClass} border-acc2 px-2 py-0.5 text-acc2`} onClick={(event) => {
           // Preserve the initiating control's focus before progress replaces it.
           if (document.activeElement === event.currentTarget) cardRef.current?.focus({ preventScroll: true });
           onDownload();
         }} type="button">
-          {t("download")}
+          {t("fileGet")}
         </button>
       ) : file.state === "requesting" || file.state === "transferring" ? (
         <div
@@ -740,20 +684,20 @@ function FileCard({ file, onDownload }: { file: UiFile; onDownload: () => void }
           aria-valuemax={100}
           aria-valuemin={0}
           aria-valuenow={percent}
-          className="file-progress"
+          className="file-progress ml-auto flex items-center gap-2"
           role="progressbar"
         >
-          <div className="file-progress-track">
-            <div className="file-progress-bar" style={{ width: `${percent}%` }} />
+          <div className="file-progress-track h-1 w-20 overflow-hidden rounded-full bg-line">
+            <div className="file-progress-bar grad h-full" style={{ width: `${percent}%` }} />
           </div>
-          <span className="file-progress-label">{percent}%</span>
+          <span className="file-progress-label text-xs tabular-nums text-dim">{percent}%</span>
         </div>
       ) : file.state === "ready" && file.url ? (
-        <a aria-label={t("saveFileLabel", { name: file.name })} className="secondary-button file-action" download={file.name} href={file.url}>
-          {t("saveFile")}
+        <a aria-label={t("saveFileLabel", { name: file.name })} className={`file-action ml-auto ${roomButtonClass} border-acc2 px-2 py-0.5 text-acc2`} download={file.name} href={file.url}>
+          {t("fileSave")}
         </a>
       ) : file.state === "error" ? (
-        <span className="file-status file-status-error">{t("transferFailed")}</span>
+        <span className="file-status file-status-error basis-full text-xs text-danger">{t("transferFailed")}</span>
       ) : null}
     </div>
   );
@@ -765,39 +709,40 @@ function InviteCheckingScreen({ connection, error, onRetry, focusRef }: {
   onRetry?: () => void;
 } & RecoveryFocusTarget) {
   return (
-    <main className="room-shell room-shell-centered">
-      <section className="access-screen" aria-live="polite">
-        <p className="eyebrow">elm chat</p>
-        <h1 className="access-title">{t("checkingInvite")}</h1>
-        <p className="access-copy">{t("verifyingInvite")}</p>
-        <p ref={focusRef} tabIndex={-1}>{connection}</p>
-        {error ? <p className="error-text" role="alert">{error}</p> : null}
-        {onRetry ? <button className="secondary-button" onClick={onRetry} type="button">{t("retryConnection")}</button> : null}
-        <MakeYourOwnCallout />
-      </section>
-    </main>
+    <StateScreen label={t("boxInvite")}>
+      <h1 className={STATE_TITLE}>{t("checkingInvite")}</h1>
+      <p className={STATE_COPY}>{t("verifyingInvite")}</p>
+      <p className="mt-4 text-xs text-acc2 outline-none" ref={focusRef} tabIndex={-1}>
+        <span aria-hidden="true">&gt; </span>
+        {connection}
+      </p>
+      {error ? <p className="error-text mt-3 text-sm text-danger" role="alert">{error}</p> : null}
+      {onRetry ? (
+        <button
+          className={`mt-6 rounded-md border border-line px-4 py-2 text-sm hover:border-acc hover:text-acc ${FOCUS_RING}`}
+          onClick={onRetry}
+          type="button"
+        >
+          {t("retryConnection")}
+        </button>
+      ) : null}
+    </StateScreen>
   );
 }
 
 function RoomGoneScreen({ fromInvite, reason, focusRef }: { fromInvite: boolean; reason?: string } & RecoveryFocusTarget) {
   return (
-    <main className="room-shell room-shell-centered">
-      <section className="access-screen" aria-live="polite">
-        <p className="eyebrow">elm chat</p>
-        <h1 className="access-title" ref={focusRef} tabIndex={-1}>{t("roomGone")}</h1>
-        <p className="access-copy">
-          {reason ?? t("roomGoneCopy")}
-        </p>
-        <a
-          className="primary-button access-home-link"
-          href={fromInvite ? "/?source=invite" : "/"}
-          onClick={fromInvite ? recordMakeYourOwnClick : undefined}
-        >
-          {t("startNew")} &rarr;
-        </a>
-        {fromInvite ? <MakeYourOwnCallout /> : null}
-      </section>
-    </main>
+    <StateScreen label={fromInvite ? t("boxInvite") : t("boxRoom")}>
+      <h1 className={STATE_TITLE} ref={focusRef} tabIndex={-1}>{t("roomGone")}</h1>
+      <p className={STATE_COPY}>{reason ?? t("roomGoneCopy")}</p>
+      <a
+        className={`grad mt-6 inline-block rounded-md px-4 py-2.5 text-sm font-bold lowercase ${FOCUS_RING}`}
+        href="/"
+      >
+        {t("startNew")}
+        <span aria-hidden="true"> &rarr;</span>
+      </a>
+    </StateScreen>
   );
 }
 
@@ -805,38 +750,161 @@ export function App() {
   const route = roomPathname();
   useEffect(() => {
     const previousLanguage = document.documentElement.lang;
-    // Marketing articles are English; the landing and room UI use the catalog locale.
-    document.documentElement.lang = route.view === "marketing" ? "en" : locale;
+    // Every view, including the limits page, uses the catalog locale.
+    document.documentElement.lang = locale;
     return () => {
       document.documentElement.lang = previousLanguage;
     };
-  }, [route.view]);
+  }, []);
   if (route.view === "room" && route.roomId) {
     return <RoomPage roomId={route.roomId} />;
   }
-  if (route.view === "marketing" && route.marketingSlug) {
-    const sourceParam = new URLSearchParams(window.location.search).get("source");
-    const externalSource = resolveExternalAcquisitionSource(sourceParam, document.referrer);
-    return <MarketingPage externalSource={externalSource} slug={route.marketingSlug} />;
+  if (route.view === "limits") {
+    return <LimitsPage />;
   }
   return <LandingPage />;
 }
 
+type DurationPreset = { label: string; amount: string; unit: DurationUnit } | { label: string; never: true };
+
+const MESSAGE_PRESETS: DurationPreset[] = [
+  { label: "1m", amount: "1", unit: "minutes" },
+  { label: "7m", amount: "7", unit: "minutes" },
+  { label: "1h", amount: "1", unit: "hours" },
+  { label: "1d", amount: "1", unit: "days" },
+  { label: "never", never: true }
+];
+
+const ROOM_PRESETS: DurationPreset[] = [
+  { label: "10m", amount: "10", unit: "minutes" },
+  { label: "1h", amount: "1", unit: "hours" },
+  { label: "1d", amount: "1", unit: "days" },
+  { label: "7d", amount: "7", unit: "days" },
+  { label: "never", never: true }
+];
+
+function presetMatches(preset: DurationPreset, draft: DurationDraft): boolean {
+  if ("never" in preset) {
+    return draft.indefinite;
+  }
+  return !draft.indefinite && Number(draft.amount) === Number(preset.amount) && draft.unit === preset.unit;
+}
+
+const CHIP = `rounded border px-3 py-1.5 text-sm ${FOCUS_RING}`;
+const CHIP_ON = "border-acc font-semibold text-acc";
+const CHIP_OFF = "border-line text-dim hover:border-dim hover:text-fg";
+const FIELD = `rounded border border-line bg-bg px-2 py-1.5 text-sm text-fg ${FOCUS_RING}`;
+
+// Preset chips for one duration policy, plus a "custom" disclosure that keeps
+// the original amount and unit inputs so any value the old form allowed still works.
+function DurationPicker({
+  id,
+  label,
+  summary,
+  draft,
+  presets,
+  fallbackAmount,
+  amountLabel,
+  unitLabel,
+  onChange
+}: {
+  id: string;
+  label: string;
+  summary: string;
+  draft: DurationDraft;
+  presets: DurationPreset[];
+  fallbackAmount: string;
+  amountLabel: string;
+  unitLabel: string;
+  onChange: (update: (current: DurationDraft) => DurationDraft) => void;
+}) {
+  const matched = presets.some((preset) => presetMatches(preset, draft));
+  const [customOpen, setCustomOpen] = useState(false);
+  // A value no chip matches keeps the custom inputs open so it stays visible and editable.
+  const showCustom = customOpen || !matched;
+  return (
+    <div aria-labelledby={`${id}-label`} role="group">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <span className="text-xs text-dim" id={`${id}-label`}>{label}</span>
+        <span className="text-xs text-acc2">{summary}</span>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {presets.map((preset) => {
+          const active = presetMatches(preset, draft);
+          return (
+            <button
+              aria-pressed={active}
+              className={`${CHIP} ${active ? CHIP_ON : CHIP_OFF}`}
+              key={preset.label}
+              onClick={() =>
+                onChange((current) =>
+                  "never" in preset
+                    ? toggleIndefiniteDuration(current, true, fallbackAmount)
+                    : { amount: preset.amount, unit: preset.unit, indefinite: false }
+                )
+              }
+              type="button"
+            >
+              {"never" in preset ? t("presetNever") : preset.label}
+            </button>
+          );
+        })}
+        <button
+          aria-controls={`${id}-custom`}
+          aria-expanded={showCustom}
+          className={`${CHIP} ${matched ? CHIP_OFF : CHIP_ON}`}
+          onClick={() => setCustomOpen((open) => (matched ? !open : true))}
+          type="button"
+        >
+          {t("customDuration")}
+          <span aria-hidden="true">{showCustom ? " -" : " +"}</span>
+        </button>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2" hidden={!showCustom} id={`${id}-custom`}>
+        <input
+          aria-label={amountLabel}
+          className={`${FIELD} w-24`}
+          inputMode="numeric"
+          min="1"
+          onChange={(event) => {
+            const amount = event.target.value;
+            onChange((current) => ({ ...current, amount, indefinite: false }));
+          }}
+          type="number"
+          value={draft.indefinite ? "" : draft.amount}
+        />
+        <select
+          aria-label={unitLabel}
+          className={FIELD}
+          onChange={(event) => {
+            const unit = event.target.value as DurationUnit;
+            onChange((current) => ({
+              ...current,
+              unit,
+              indefinite: false,
+              amount: current.amount || fallbackAmount
+            }));
+          }}
+          value={draft.unit}
+        >
+          <option value="minutes">{t("minutes")}</option>
+          <option value="hours">{t("hours")}</option>
+          <option value="days">{t("days")}</option>
+        </select>
+      </div>
+    </div>
+  );
+}
+
+const HOW_STEPS: [MessageKey, MessageKey][] = [
+  ["howCreateTitle", "howCreateCopy"],
+  ["howInviteTitle", "howInviteCopy"],
+  ["howDestroyTitle", "howDestroyCopy"]
+];
+
 function LandingPage() {
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [community, setCommunity] = useState<CommunityFeed | null>(null);
-  const [communityError, setCommunityError] = useState(false);
-  const [ghStats, setGhStats] = useState<{ stars: number | null; forks: number | null }>({
-    stars: null,
-    forks: null
-  });
-  const whyUseUrl =
-    "https://github.com/shawnbure/elm-chat/blob/main/docs/why-use-elm-chat.md";
-  const articleUrl =
-    "https://github.com/shawnbure/elm-chat/blob/main/docs/truly-private-messaging.md";
-  const sourceParam = new URLSearchParams(window.location.search).get("source");
-  const externalSource = resolveExternalAcquisitionSource(sourceParam, document.referrer);
   const [messageDuration, setMessageDuration] = useState<DurationDraft>({
     amount: "7",
     unit: "minutes",
@@ -848,62 +916,13 @@ function LandingPage() {
     indefinite: false
   });
 
-  useEffect(() => {
-    let active = true;
-    fetch("/api/stars")
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data) => {
-        if (active && data) {
-          setGhStats({ stars: data.stars ?? null, forks: data.forks ?? null });
-        }
-      })
-      .catch(() => {
-        // Non-fatal: counts simply stay hidden if the lookup fails.
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    fetch("/api/community")
-      .then((response) => {
-        if (!response.ok) throw new Error("Community feed unavailable.");
-        return response.json() as Promise<CommunityFeed>;
-      })
-      .then((feed) => {
-        if (active) setCommunity(feed);
-      })
-      .catch(() => {
-        if (active) setCommunityError(true);
-      });
-    return () => { active = false; };
-  }, []);
-
-  useEffect(() => {
-    if (externalSource) {
-      recordGrowthEvent("external_referral_viewed", externalSource);
-    }
-  }, [externalSource]);
-
-  function updateDurationIndefinite(kind: DurationKind, checked: boolean) {
-    if (kind === "message") {
-      setMessageDuration((current) => toggleIndefiniteDuration(current, checked, "7"));
-      return;
-    }
-    setRoomDuration((current) => toggleIndefiniteDuration(current, checked, "10"));
-  }
-
   async function handleCreate() {
     try {
       setCreating(true);
       setError(null);
       const secret = generateRoomSecret();
       const turnstileToken = await getTurnstileToken();
-      const source = new URLSearchParams(window.location.search).get("source");
       const room = await createRoom({
-        acquisitionSource: isAcquisitionSource(source) ? source : undefined,
         disappearAfterReadSeconds: parseDurationDraft(
           messageDuration,
           7,
@@ -923,291 +942,107 @@ function LandingPage() {
   }
 
   return (
-    <main className="landing-shell">
-      <section className="hero">
-        <div className="hero-copy">
-          {externalSource === "freshcode" ? (
-            <aside className="external-arrival" aria-label={t("freshcodeFound")}>
-              <span className="external-arrival-label">{t("freshcodeFound")}</span>
-              <strong>{t("freshcodeOpen")}</strong>
-              <p>{t("freshcodeCopy")}</p>
-              <div className="external-arrival-actions">
-                <a
-                  href={`${GITHUB_URL}/releases/tag/v0.1.0`}
-                  onClick={() => recordGrowthEvent("external_source_clicked", externalSource)}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  {t("inspectRelease")}
-                </a>
-                <a
-                  href={`https://deploy.workers.cloudflare.com/?url=${GITHUB_URL}`}
-                  onClick={() => recordGrowthEvent("external_deploy_clicked", externalSource)}
-                  rel="noreferrer"
-                  target="_blank"
-                >
-                  {t("deployOwn")}
-                </a>
-              </div>
-            </aside>
-          ) : null}
-          <p className="hero-brand">
-            <span className="hero-brand-name">elm chat</span>
-            <span className="hero-brand-meaning">
-              <span className="hero-brand-separator" aria-hidden="true">·</span>
-              {t("nameMeaning")}
-            </span>
-          </p>
-          <div className="hero-links" aria-label={t("learnAbout")}>
-            <a className="hero-link" href={whyUseUrl} rel="noreferrer" target="_blank">
-              {t("whyUse")}
-            </a>
-            <a className="hero-link" href={articleUrl} rel="noreferrer" target="_blank">
-              {t("readArticle")}
-            </a>
-            <a className="hero-link" href="/press">
-              {t("pressKit")}
-            </a>
-            <a className="hero-link" href="/security-and-limitations">
-              {t("securityStatus")}
-            </a>
-          </div>
-          <h1>{t("heroTitle")}</h1>
-          <p className="lede">
-            {t("heroCopy")}
-          </p>
-          <div className="creation-panel">
-            <div className="setting-row" role="group" aria-labelledby="message-policy-label">
-              <div>
-                <span className="setting-label" id="message-policy-label">{t("messageVanish")}</span>
-                <p className="setting-note">
-                  {formatSelectedDuration(
-                    messageDuration.amount,
-                    messageDuration.unit,
-                    messageDuration.indefinite
-                  )}
-                </p>
-              </div>
-              <div
-                className={`setting-controls ${messageDuration.indefinite ? "setting-controls-disabled" : ""}`}
-              >
-                <input
-                  aria-label={t("messageDurationAmount")}
-                  className="setting-input"
-                  disabled={messageDuration.indefinite}
-                  inputMode="numeric"
-                  min="1"
-                  onChange={(event) =>
-                    setMessageDuration((current) => ({ ...current, amount: event.target.value }))
-                  }
-                  type="number"
-                  value={messageDuration.indefinite ? "" : messageDuration.amount}
-                />
-                <select
-                  aria-label={t("messageDurationUnit")}
-                  className="setting-select"
-                  disabled={messageDuration.indefinite}
-                  onChange={(event) =>
-                    setMessageDuration((current) => ({
-                      ...current,
-                      unit: event.target.value as DurationUnit
-                    }))
-                  }
-                  value={messageDuration.unit}
-                >
-                  <option value="minutes">{t("minutes")}</option>
-                  <option value="hours">{t("hours")}</option>
-                  <option value="days">{t("days")}</option>
-                </select>
-                <label className="toggle-pill">
-                  <input
-                    aria-labelledby="message-policy-label message-indefinite-label"
-                    checked={messageDuration.indefinite}
-                    onChange={(event) =>
-                      updateDurationIndefinite("message", event.target.checked)
-                    }
-                    type="checkbox"
-                  />
-                  <span id="message-indefinite-label">{t("indefinite")}</span>
-                </label>
-              </div>
-            </div>
-            <div className="setting-row" role="group" aria-labelledby="room-policy-label">
-              <div>
-                <span className="setting-label" id="room-policy-label">{t("roomSelfDestruct")}</span>
-                <p className="setting-note">
-                  {roomDuration.indefinite
-                    ? t("onlyManualDestroy")
-                    : `${formatSelectedDuration(roomDuration.amount, roomDuration.unit, false)} ${t("idle")}`}
-                </p>
-              </div>
-              <div
-                className={`setting-controls ${roomDuration.indefinite ? "setting-controls-disabled" : ""}`}
-              >
-                <input
-                  aria-label={t("roomDurationAmount")}
-                  className="setting-input"
-                  disabled={roomDuration.indefinite}
-                  inputMode="numeric"
-                  min="1"
-                  onChange={(event) =>
-                    setRoomDuration((current) => ({ ...current, amount: event.target.value }))
-                  }
-                  type="number"
-                  value={roomDuration.indefinite ? "" : roomDuration.amount}
-                />
-                <select
-                  aria-label={t("roomDurationUnit")}
-                  className="setting-select"
-                  disabled={roomDuration.indefinite}
-                  onChange={(event) =>
-                    setRoomDuration((current) => ({
-                      ...current,
-                      unit: event.target.value as DurationUnit
-                    }))
-                  }
-                  value={roomDuration.unit}
-                >
-                  <option value="minutes">{t("minutes")}</option>
-                  <option value="hours">{t("hours")}</option>
-                  <option value="days">{t("days")}</option>
-                </select>
-                <label className="toggle-pill">
-                  <input
-                    aria-labelledby="room-policy-label room-indefinite-label"
-                    checked={roomDuration.indefinite}
-                    onChange={(event) =>
-                      updateDurationIndefinite("room", event.target.checked)
-                    }
-                    type="checkbox"
-                  />
-                  <span id="room-indefinite-label">{t("indefinite")}</span>
-                </label>
-              </div>
-            </div>
-          </div>
-          <div className="hero-actions">
-            <button className="primary-button" disabled={creating} onClick={handleCreate}>
-              {creating ? t("creatingRoom") : t("createRoom")}
-            </button>
-            <p className="helper-text">
-              {t("roomSecret")}
-            </p>
-            <p className="helper-text">{t("securityWarning")}</p>
-          </div>
-          {error ? <p className="error-text">{error}</p> : null}
-        </div>
-        <div className="hero-panel">
-          <div className="signal-grid" />
-          <div className="hero-panel-top">
-          <a
-            className="github-cta"
-            href={GITHUB_URL}
-            onClick={() =>
-              recordGrowthEvent("github_star_clicked", externalSource ?? undefined)
-            }
-            rel="noreferrer"
-            target="_blank"
-          >
-            <GithubMark size={22} />
-            <span className="github-cta-copy">
-              <strong>{t("githubHeadline")}</strong>
-              <span>{t("githubCopy")}</span>
-            </span>
-            <span className="github-cta-stats" aria-label={t("githubStats")}>
-              {ghStats.stars !== null ? (
-                <span className="github-stat">
-                  <span aria-hidden="true">★</span> {formatCount(ghStats.stars)}
-                </span>
-              ) : null}
-              {ghStats.forks !== null ? (
-                <span className="github-stat">
-                  <span aria-hidden="true">⑂</span> {formatCount(ghStats.forks)}
-                </span>
-              ) : null}
-            </span>
-          </a>
-          <div className="github-links" aria-label={t("projectSource")}>
-            <a className="github-mini" href={GITHUB_URL} rel="noreferrer" target="_blank">
-              <GithubMark size={13} /> {t("viewSource")}
-            </a>
-            <a className="github-mini" href={`${GITHUB_URL}/fork`} rel="noreferrer" target="_blank">
-              {t("forkMe")}
-            </a>
-            <a
-              className="github-mini"
-              href={`${GITHUB_URL}/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22good%20first%20issue%22`}
-              onClick={() =>
-                recordGrowthEvent("good_first_issue_clicked", externalSource ?? undefined)
-              }
-              rel="noreferrer"
-              target="_blank"
+    <>
+      <TopRule />
+      <main className="mx-auto flex min-h-[calc(100dvh-2px)] max-w-5xl flex-col px-4 py-6 sm:px-8">
+        <SiteHeader />
+
+        <section className="grid flex-1 items-center gap-10 py-10 lg:grid-cols-[1.15fr_1fr]">
+          <div className="min-w-0">
+            <h1 className="text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl">
+              {t("heroLineOne")}
+              <br />
+              <span className="grad-text">{t("heroLineTwo")}</span>
+            </h1>
+            <p className="mt-6 max-w-md text-[15px] leading-relaxed text-dim">{t("heroLede")}</p>
+            <dl
+              aria-label={t("stripLabel")}
+              className="mt-8 grid max-w-md grid-cols-3 gap-px overflow-hidden rounded-md border border-line bg-line text-xs"
             >
-              {t("starterIssue")}
-            </a>
-          </div>
-          </div>
-          <div className="github-community" aria-label={t("communityTitle")}>
-            <div className="community-section">
-              <div className="community-heading">
-                <h2>{t("latestFixes")}</h2>
-                <a href={`${GITHUB_URL}/issues?q=is%3Aissue%20state%3Aclosed`} rel="noreferrer" target="_blank">
-                  {t("viewAll")}
-                </a>
+              <div className="bg-panel p-3">
+                <dt className="text-dim">{t("stripCipher")}</dt>
+                <dd className="mt-1 font-semibold">AES-GCM</dd>
               </div>
-              {community?.fixes.map((issue) => (
-                <a className="community-fix" href={issue.url} key={issue.number} rel="noreferrer" target="_blank">
-                  <span className="community-number">#{issue.number}</span>
-                  <span className="community-title">{issue.title}</span>
-                </a>
-              ))}
-              {community && community.fixes.length === 0 ? <p className="community-empty">{t("noFixes")}</p> : null}
-            </div>
-            <div className="community-section">
-              <div className="community-heading">
-                <h2>{t("openRequests")}</h2>
-                <a href={`${GITHUB_URL}/issues?q=is%3Aissue%20state%3Aopen`} rel="noreferrer" target="_blank">
-                  {t("viewAll")}
-                </a>
+              <div className="bg-panel p-3">
+                <dt className="text-dim">{t("stripKey")}</dt>
+                <dd className="mt-1 font-semibold">#fragment</dd>
               </div>
-              {community?.requests.map((issue) => (
-                <a className="community-request" href={issue.url} key={issue.number} rel="noreferrer" target="_blank">
-                  <span className="community-number">#{issue.number}</span>
-                  <span className="community-title">{issue.title}</span>
-                </a>
-              ))}
-              {community && community.requests.length === 0 ? (
-                <p className="community-empty">{t("noRequests")}</p>
-              ) : null}
-            </div>
-            {!community && !communityError ? <p className="community-empty">{t("loadingCommunity")}</p> : null}
-            {communityError ? (
-              <p className="community-empty">{t("communityUnavailable")}{" "}
-                <a href={`${GITHUB_URL}/issues`} rel="noreferrer" target="_blank">{t("viewOnGithub")}</a>
-              </p>
-            ) : null}
+              <div className="bg-panel p-3">
+                <dt className="text-dim">{t("stripFiles")}</dt>
+                <dd className="mt-1 font-semibold">{MAX_FILE_BYTES / (1024 * 1024)} MiB</dd>
+              </div>
+            </dl>
           </div>
-          <div className="hero-metrics">
-            <div>
-              <span>{t("access")}</span>
-              <strong>{t("secretLinkOnly")}</strong>
+
+          <section aria-labelledby="new-room-title" className="box min-w-0 p-5 pt-7 sm:p-6 sm:pt-7">
+            <h2 className="box-title" id="new-room-title">{t("newRoom")}</h2>
+            <DurationPicker
+              amountLabel={t("messageDurationAmount")}
+              draft={messageDuration}
+              fallbackAmount="7"
+              id="message-policy"
+              label={t("vanishAfter")}
+              onChange={setMessageDuration}
+              presets={MESSAGE_PRESETS}
+              summary={formatSelectedDuration(
+                messageDuration.amount,
+                messageDuration.unit,
+                messageDuration.indefinite
+              )}
+              unitLabel={t("messageDurationUnit")}
+            />
+            <div className="mt-6">
+              <DurationPicker
+                amountLabel={t("roomDurationAmount")}
+                draft={roomDuration}
+                fallbackAmount="10"
+                id="room-policy"
+                label={t("selfDestructAfter")}
+                onChange={setRoomDuration}
+                presets={ROOM_PRESETS}
+                summary={
+                  roomDuration.indefinite
+                    ? t("onlyManualDestroy")
+                    : `${formatSelectedDuration(roomDuration.amount, roomDuration.unit, false)} ${t("idle")}`
+                }
+                unitLabel={t("roomDurationUnit")}
+              />
             </div>
-            <div>
-              <span>{t("messagePolicy")}</span>
-              <strong>
-                {messageDuration.indefinite
-                  ? t("manualCleanup")
-                  : formatSelectedDuration(messageDuration.amount, messageDuration.unit, false)}
-              </strong>
-            </div>
-            <div>
-              <span>{t("roomPolicy")}</span>
-              <strong>{roomDuration.indefinite ? t("noIdleTimeout") : t("idleSelfDestruct")}</strong>
-            </div>
-          </div>
-        </div>
-      </section>
-    </main>
+            <button
+              className={`grad mt-8 w-full rounded-md px-4 py-3 text-sm font-bold lowercase disabled:opacity-60 ${FOCUS_RING}`}
+              disabled={creating}
+              onClick={handleCreate}
+              type="button"
+            >
+              {creating ? t("creatingRoom") : t("createRoom")}
+              {creating ? null : <span aria-hidden="true"> &rarr;</span>}
+            </button>
+            {error ? <p className="error-text mt-4 text-sm text-danger" role="alert">{error}</p> : null}
+            <p className="mt-4 text-[11px] leading-relaxed text-dim">
+              {t("createFootnote")}
+              {" · "}
+              <a className={`rounded-sm text-acc2 underline underline-offset-2 hover:text-fg ${FOCUS_RING}`} href="/limits">
+                {t("readLimits")}
+              </a>
+            </p>
+          </section>
+        </section>
+
+        <section aria-labelledby="how-title" className="scroll-mt-6 border-t border-line py-10" id="how">
+          <h2 className="text-xs uppercase tracking-[0.12em] text-dim" id="how-title">{t("howTitle")}</h2>
+          <ol className="mt-6 grid gap-6 sm:grid-cols-3">
+            {HOW_STEPS.map(([title, copy], index) => (
+              <li className="min-w-0" key={title}>
+                <p className="text-sm font-bold">
+                  <span className="grad-text">{String(index + 1).padStart(2, "0")}</span> {t(title)}
+                </p>
+                <p className="mt-2 text-sm leading-relaxed text-dim">{t(copy)}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+      </main>
+    </>
   );
 }
 
@@ -1264,6 +1099,8 @@ function RoomPage({ roomId }: { roomId: string }) {
   const [destroying, setDestroying] = useState(false);
   const [inviteAccess, setInviteAccess] = useState<InviteAccess>(isInviteGuest ? "checking" : "granted");
   const [removedFromRoom, setRemovedFromRoom] = useState(false);
+  // Below lg the invites panel is folded away behind a header toggle.
+  const [invitesOpen, setInvitesOpen] = useState(false);
   const [inviteDuration, setInviteDuration] = useState<InviteDurationDraft>({
     amount: "10",
     unit: "minutes"
@@ -1315,7 +1152,6 @@ function RoomPage({ roomId }: { roomId: string }) {
       replayStateKey(roomId, sessionId, "event")
     );
   }
-  const measuredInviteHandoffsRef = useRef(new Set<string>());
   const shouldRequestSyncRef = useRef(false);
   // Files being served by this client (we are the sender), kept in memory so we
   // can stream chunks on demand when a peer requests them.
@@ -2390,14 +2226,6 @@ function RoomPage({ roomId }: { roomId: string }) {
     setError(t("clipboardLinkFailed"));
   }
 
-  function recordInviteHandoff(token: string) {
-    if (measuredInviteHandoffsRef.current.has(token)) {
-      return;
-    }
-    measuredInviteHandoffsRef.current.add(token);
-    recordGrowthEvent("invite_share_handoff");
-  }
-
   function inviteActionIsCurrent(action: number, token: string) {
     return action === inviteActionRef.current && roomStatusRef.current === "open" &&
       canShareInvite(currentInvitesRef.current.find((invite) => invite.token === token), Date.now());
@@ -2424,11 +2252,10 @@ function RoomPage({ roomId }: { roomId: string }) {
       if (typeof navigator.share === "function") {
         try {
           await navigator.share({
-            title: "elm.chat invite",
+            title: "chat invite",
             text: t("inviteShareText"),
             url: inviteUrl
           });
-          recordInviteHandoff(invite.token);
           if (!inviteActionIsCurrent(action, invite.token)) return;
           setInviteFeedback("shared");
           setRoomNotice(t("sharedInviteNotice"));
@@ -2445,7 +2272,6 @@ function RoomPage({ roomId }: { roomId: string }) {
         }
       }
       if (await copyText(inviteUrl)) {
-        recordInviteHandoff(invite.token);
         if (!inviteActionIsCurrent(action, invite.token)) return;
         setInviteFeedback("copied");
         setRoomNotice(t("copiedInviteNotice"));
@@ -2468,7 +2294,6 @@ function RoomPage({ roomId }: { roomId: string }) {
     setRoomNotice(null);
     setError(null);
     if (await copyText(buildInviteUrl(roomId, token, roomSecret))) {
-      recordInviteHandoff(token);
       if (!inviteActionIsCurrent(action, token)) return;
       setInviteFeedback("copied");
       setRoomNotice(t("copiedInviteNotice"));
@@ -2490,11 +2315,10 @@ function RoomPage({ roomId }: { roomId: string }) {
     }
     try {
       await navigator.share({
-        title: "elm.chat invite",
+        title: "chat invite",
         text: t("inviteShareText"),
         url: buildInviteUrl(roomId, token, roomSecret)
       });
-      recordInviteHandoff(token);
       if (!inviteActionIsCurrent(action, token)) return;
       setInviteFeedback("shared");
       setRoomNotice(t("sharedInviteNotice"));
@@ -2629,91 +2453,56 @@ function RoomPage({ roomId }: { roomId: string }) {
       onRetry={canRetryConnection ? () => retryConnectionRef.current?.() : undefined} />;
   }
 
+  const connectionTone =
+    connection === t("connected")
+      ? "bg-acc shadow-[0_0_8px_var(--acc)]"
+      : connection === t("disconnected") || connection === t("connectionError") || connection === t("closed")
+        ? "bg-danger"
+        : "bg-acc2 motion-safe:animate-pulse";
+  const showInvitesPanel = invitesOpen || Boolean(showManualInvite && manualInvite);
+
   return (
     <>
     {concealment.screen}
-    <main className="room-shell room-content" hidden={concealment.hidden} style={concealment.hidden ? { display: "none" } : undefined}>
-      <header className="room-header">
-        <div className="room-title">
-          <p className="eyebrow">elm chat</p>
-          <h1>{roomId.slice(0, 8)}</h1>
-          <p className="room-subtitle">
-            {messagePolicyLabel} {roomPolicyLabel}
-          </p>
-        </div>
-        <div className="room-toolbar">
-          <div className="room-meta" aria-live="polite" ref={setRetryFocusTarget} tabIndex={-1}>
-            <span>{connection}</span>
-            <span>{t("present", { count: presentCount })}</span>
-          </div>
-          <div className="room-actions">
-            {canRetryConnection ? (
-              <button className="secondary-button" onClick={() => retryConnectionRef.current?.()} type="button">
-                {t("retryConnection")}
-              </button>
-            ) : null}
-            {isCreator ? (
-              <button
-                className={`secondary-button ${inviteFeedback !== "idle" ? "button-success" : ""}`}
-                onClick={handleShareInvite}
-                ref={inviteTriggerRef}
-                type="button"
-              >
-                {inviteFeedback === "shared"
-                  ? t("inviteShared")
-                  : inviteFeedback === "copied"
-                    ? t("inviteCopiedSend")
-                    : typeof navigator.share === "function"
-                      ? t("sendInvite")
-                      : t("inviteOne")}
-              </button>
-            ) : (
-              <button
-                className={`secondary-button ${copyFeedback === "success" ? "button-success" : ""}`}
-                onClick={handleCopyLink}
-                type="button"
-              >
-                {copyFeedback === "success" ? t("copied") : t("copyMyLink")}
-              </button>
-            )}
-            <button
-              className={`secondary-button ${destroyFeedback === "success" ? "button-success" : ""}`}
-              disabled={!creatorToken || destroying || room?.status !== "open"}
-              onClick={handleDestroy}
-              type="button"
-            >
-              {destroying ? t("destroying") : t("destroy")}
-            </button>
-            {concealment.control}
-          </div>
-          <span className="sr-only" role="status" aria-live="polite">
-            {inviteFeedback === "shared"
-              ? t("inviteSharedStatus")
-              : inviteFeedback === "copied"
-                ? t("inviteCopiedStatus")
-                : copyFeedback === "success"
-                  ? t("roomLinkCopiedStatus")
-                  : ""}
+    <main className="room-shell room-content flex h-dvh flex-col overflow-hidden" hidden={concealment.hidden} style={concealment.hidden ? { display: "none" } : undefined}>
+      <div aria-hidden="true" className="grad h-0.5 w-full flex-none" />
+      <div className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-4 px-3 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 sm:px-6">
+      <header className="room-header box flex flex-none flex-wrap items-center gap-x-5 gap-y-2 px-4 pb-3 pt-4 text-sm">
+        <span className="box-title">{t("roomBoxTitle")}</span>
+        <h1 className="text-base font-bold">{roomId.slice(0, 8)}</h1>
+        <div className="room-meta flex items-center gap-3 rounded-sm text-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acc" aria-live="polite" ref={setRetryFocusTarget} tabIndex={-1}>
+          <span className="flex items-center gap-1.5">
+            <span aria-hidden="true" className={`size-2 flex-none rounded-full ${connectionTone}`} />
+            <span className="lowercase">{connection}</span>
           </span>
+          <span className="text-dim">{t("present", { count: presentCount })}</span>
         </div>
-      </header>
-
-      <section className="room-strip">
-        <div className="participant-strip" aria-label={t("participants")}>
+        {canRetryConnection ? (
+          <button className={`${roomButtonClass} border-acc2 text-acc2`} onClick={() => retryConnectionRef.current?.()} type="button">
+            {t("retryConnection")}
+          </button>
+        ) : null}
+        <span className="text-xs text-dim" title={messagePolicyLabel}>
+          {t("vanishShort")} <b className="font-semibold text-fg">
+            {typeof room?.disappearAfterReadSeconds === "number" ? formatStaticDuration(room.disappearAfterReadSeconds) : t("vanishOff")}
+          </b>
+        </span>
+        <span className="text-xs text-dim" title={roomPolicyLabel}>
+          {t("endsShort")} <b className="font-semibold text-fg">
+            {typeof roomDeadline === "number" ? formatClock(roomDeadline) : t("endsManual")}
+          </b>
+        </span>
+        <div className="participant-strip flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-dim" aria-label={t("participants")} role="group">
           {sortedPresenceIds.length === 0 ? (
             <span className="participant-empty">{t("waiting")}</span>
           ) : (
             sortedPresenceIds.map((id) => (
-              <span
-                className={`participant-chip ${id === sessionId ? "participant-chip-self" : ""}`}
-                key={id}
-                style={{ "--participant-color": colorFromSessionId(id) } as CSSProperties}
-              >
-                <span className="participant-dot" />
-                {id === sessionId ? t("you") : t("guest")}
+              <span className={`participant-chip flex items-center gap-1.5 ${id === sessionId ? "participant-chip-self text-fg" : ""}`} key={id}>
+                <span aria-hidden="true" className="participant-dot size-2.5 flex-none rounded-sm" style={{ backgroundColor: colorFromSessionId(id) }} />
+                <span className="lowercase">{id === sessionId ? t("you") : t("guest")}</span>
                 {isCreator && id !== sessionId ? (
                   <button
-                    className="participant-kick"
+                    className="participant-kick lowercase text-dim hover:text-danger focus-visible:outline-2 focus-visible:outline-acc"
                     onClick={() => handleKickParticipant(id)}
                     type="button"
                   >
@@ -2724,185 +2513,288 @@ function RoomPage({ roomId }: { roomId: string }) {
             ))
           )}
         </div>
-        <div className="banner-stats">
-          <span>{room?.status ?? "loading"}</span>
-        </div>
-      </section>
-
-      {isCreator ? (
-        <section className="invite-settings" aria-label={t("inviteExpiration")}>
-          <div>
-            <span className="setting-label">{t("newInviteExpires")}</span>
-            <p className="setting-note">
-              {t("inviteNextOnly")}
-            </p>
-          </div>
-          <div className="setting-controls">
-            <input
-              aria-label={t("inviteLifetimeAmount")}
-              className="setting-input"
-              inputMode="numeric"
-              min="1"
-              onChange={(event) =>
-                setInviteDuration((current) => ({ ...current, amount: event.target.value }))
-              }
-              type="number"
-              value={inviteDuration.amount}
-            />
-            <select
-              aria-label={t("inviteLifetimeUnit")}
-              className="setting-select"
-              onChange={(event) =>
-                setInviteDuration((current) => ({
-                  ...current,
-                  unit: event.target.value as DurationUnit
-                }))
-              }
-              value={inviteDuration.unit}
+        <div className="room-actions flex flex-wrap gap-2 sm:ml-auto">
+          {isCreator ? (
+            <button
+              className={`${roomButtonClass} font-semibold ${inviteFeedback !== "idle" ? "button-success border-acc bg-acc/10 text-acc" : "border-acc text-acc"}`}
+              onClick={handleShareInvite}
+              ref={inviteTriggerRef}
+              type="button"
             >
-              <option value="minutes">{t("minutes")}</option>
-              <option value="hours">{t("hours")}</option>
-              <option value="days">{t("days")}</option>
-            </select>
-          </div>
-        </section>
-      ) : null}
-
-      {isInviteGuest ? <MakeYourOwnCallout compact /> : null}
-      {roomNotice ? (
-        <p className="room-notice" role="status" aria-live="polite">
-          {roomNotice}
-        </p>
-      ) : null}
-      {error ? <p className="error-text room-error" role="alert">{error}</p> : null}
-      {connectionError ? <p className="error-text room-error" role="alert">{connectionError}</p> : null}
-      {isCreator && invites.length > 0 ? (
-        <section className="invite-panel">
-          <span className="eyebrow">{t("invites")}</span>
-          <p className="invite-guidance">
-            {t("inviteGuidance")}
-          </p>
-          {showManualInvite && manualInvite ? (
-            <ManualInviteLink key={manualInvite.token} url={buildInviteUrl(roomId, manualInvite.token, roomSecret)}
-              trigger={manualInvite.trigger} focusOwner={manualInvite.focusOwner} fallbackTrigger={inviteTriggerRef.current} onDismiss={dismissManualInvite} />
+              {inviteFeedback === "shared"
+                ? t("inviteShared")
+                : inviteFeedback === "copied"
+                  ? t("inviteCopiedSend")
+                  : typeof navigator.share === "function"
+                    ? t("sendInvite")
+                    : t("inviteOne")}
+            </button>
+          ) : (
+            <button
+              className={`${roomButtonClass} font-semibold border-acc ${copyFeedback === "success" ? "button-success bg-acc/10 text-acc" : "text-acc"}`}
+              onClick={handleCopyLink}
+              type="button"
+            >
+              {copyFeedback === "success" ? t("copied") : t("copyMyLink")}
+            </button>
+          )}
+          {isCreator ? (
+            <button
+              aria-controls="room-invites"
+              aria-expanded={showInvitesPanel}
+              className={`${roomButtonClass} lg:hidden ${showInvitesPanel ? "border-acc2 text-acc2" : "border-line text-dim hover:text-fg"}`}
+              onClick={() => setInvitesOpen((current) => !current)}
+              type="button"
+            >
+              {t("invites")}{invites.length > 0 ? ` ${invites.length}` : ""}
+            </button>
           ) : null}
-          {invites.slice(0, 4).map((invite) => (
-            <div className="invite-row" key={invite.token} style={inviteAccentStyle(invite)}>
-              <span>{inviteStatusLabel(invite)}</span>
-              <div className="invite-actions">
-                {canShareInvite(invite, now) ? (
-                  <>
-                    {typeof navigator.share === "function" ? (
-                      <button
-                        className="secondary-button invite-copy"
-                        onClick={(event) => handleNativeShareInvite(invite.token, event.currentTarget)}
-                        type="button"
-                      >
-                        {t("share")}
-                      </button>
-                    ) : null}
-                    <button className="secondary-button invite-copy" onClick={(event) => handleCopyInvite(invite.token, event.currentTarget)} type="button">
-                      {t("copyInvite")}
-                    </button>
-                  </>
-                ) : null}
-                {!invite.revokedAt ? (
-                  <button className="secondary-button invite-revoke" onClick={() => handleRevokeInvite(invite.token)} type="button">
-                    {t("remove")}
-                  </button>
-                ) : null}
-              </div>
-            </div>
-          ))}
-        </section>
-      ) : null}
-
-      {conversationFind.controls}
-      <section className="chat-stage">
-        <section aria-label={t("conversationLog")} aria-live="polite" aria-relevant="additions" className="chat-log" ref={chatLogRef} role="log" tabIndex={0} onScroll={handleConversationScroll}>
-        <div className="chat-thread">
-          {!ready ? <p className="system-line">{t("deriving")}</p> : null}
-          {messages.length === 0 && ready ? (
-            <p className="system-line">{messagePolicyLabel}</p>
-          ) : null}
-          {messages.map((message) => {
-            const mine = message.senderSessionId === sessionId;
-            return (
-              <article
-                className={`bubble ${mine ? "bubble-mine" : "bubble-theirs"}${conversationFind.selectedId === message.id ? " bubble-find-selected" : ""}`}
-                data-message-id={message.id}
-                key={message.id}
-                style={bubbleStyle(message.senderSessionId, mine)}
-              >
-                <span className="bubble-author">{mine ? t("you") : t("guest")}</span>
-                {message.kind === "file" && message.file ? (
-                  <FileCard
-                    file={message.file}
-                    onDownload={() =>
-                      handleRequestFile(message.file!.fileId, message.senderSessionId)
-                    }
-                  />
-                ) : (
-                  <p>{message.plaintext}</p>
-                )}
-                <footer>
-                  <span>{formatClock(message.sentAt)}</span>
-                  <span>{messageStatus(message)}</span>
-                </footer>
-              </article>
-            );
-          })}
-        </div>
-        </section>
-        {awayFromLatest ? (
+          {conversationFind.toggle}
+          {concealment.control}
           <button
-            className="secondary-button jump-to-latest"
+            className={`${roomButtonClass} ${destroyFeedback === "success" ? "button-success border-danger bg-danger/10 text-danger" : "border-danger/50 text-danger hover:border-danger"}`}
+            disabled={!creatorToken || destroying || room?.status !== "open"}
+            onClick={handleDestroy}
             type="button"
-            onClick={() => {
-              jumpToLatest();
-              chatLogRef.current?.focus({ preventScroll: true });
-            }}
           >
-            {newMessageCount > 0 ? t("newMessagesJump", { count: newMessageCount }) : t("jumpToLatest")}
+            {destroying ? t("destroying") : t("destroy")}
           </button>
-        ) : null}
-      </section>
+        </div>
+        <span className="sr-only" role="status" aria-live="polite">
+          {inviteFeedback === "shared"
+            ? t("inviteSharedStatus")
+            : inviteFeedback === "copied"
+              ? t("inviteCopiedStatus")
+              : copyFeedback === "success"
+                ? t("roomLinkCopiedStatus")
+                : ""}
+        </span>
+      </header>
 
-      <form className="composer" onSubmit={handleSend}>
-        <button
-          aria-label={t("attachFileLabel")}
-          className="secondary-button composer-attach"
-          disabled={room?.status !== "open" || !keyReady}
-          onClick={() => fileInputRef.current?.click()}
-          title={t("attachFile")}
-          type="button"
+      <div className="flex min-h-0 flex-1 flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_17rem] lg:grid-rows-[minmax(0,1fr)]">
+      {isCreator ? (
+        <aside
+          aria-label={t("invites")}
+          className={`invite-panel box max-h-[40dvh] min-h-0 flex-none flex-col text-xs lg:col-start-2 lg:row-start-1 lg:flex lg:max-h-none ${showInvitesPanel ? "flex" : "hidden"}`}
+          id="room-invites"
         >
-          &#128206;
-        </button>
-        <input
-          hidden
-          multiple
-          onChange={(event) => void handleAttachFiles(event.target.files)}
-          ref={fileInputRef}
-          type="file"
-        />
-        <textarea
-          aria-label={t("writeMessageLabel")}
-          value={draft}
-          onChange={(event) => {
-            draftRevisionRef.current += 1;
-            setDraft(event.target.value);
-          }}
-          onKeyDown={handleComposerKeyDown}
-          disabled={room?.status !== "open" || !keyReady}
-          placeholder={room?.status === "open" ? (keyReady ? t("writeMessage") : t("securing")) : roomNotice ?? t("roomClosed")}
-          rows={3}
-        />
-        <button className="primary-button" type="submit" disabled={sending || !draft.trim() || room?.status !== "open" || !keyReady}>
-          {t("sendEncrypted")}
-        </button>
-      </form>
+          <span className="box-title">{t("invites")}</span>
+          {/* The box itself must not scroll, or it clips its title; the contents scroll instead. */}
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4 pt-6">
+            <p className="invite-guidance text-dim">{t("inviteGuidance")}</p>
+            {showManualInvite && manualInvite ? (
+              <ManualInviteLink key={manualInvite.token} url={buildInviteUrl(roomId, manualInvite.token, roomSecret)}
+                trigger={manualInvite.trigger} focusOwner={manualInvite.focusOwner} fallbackTrigger={inviteTriggerRef.current} onDismiss={dismissManualInvite} />
+            ) : null}
+            {invites.length > 0 ? (
+              <ul className="space-y-3">
+                {invites.slice(0, 4).map((invite) => {
+                  const accent = inviteAccentStyle(invite);
+                  return (
+                    <li className="invite-row flex flex-wrap items-center gap-x-2 gap-y-1" key={invite.token}>
+                      <span aria-hidden="true" className={`size-2 flex-none rounded-sm ${accent ? "" : "border border-dim"}`} style={accent} />
+                      <span className={invite.revokedAt ? "text-dim line-through" : ""}>{inviteStatusLabel(invite)}</span>
+                      <div className="invite-actions ml-auto flex flex-wrap items-center gap-x-3 gap-y-1">
+                        {canShareInvite(invite, now) ? (
+                          <>
+                            {typeof navigator.share === "function" ? (
+                              <button
+                                className={`invite-copy ${roomLinkButtonClass} text-acc2`}
+                                onClick={(event) => handleNativeShareInvite(invite.token, event.currentTarget)}
+                                type="button"
+                              >
+                                {t("share")}
+                              </button>
+                            ) : null}
+                            <button className={`invite-copy ${roomLinkButtonClass} text-acc2`} onClick={(event) => handleCopyInvite(invite.token, event.currentTarget)} type="button">
+                              {t("copyInvite")}
+                            </button>
+                          </>
+                        ) : null}
+                        {!invite.revokedAt ? (
+                          <button className={`invite-revoke ${roomLinkButtonClass} text-dim hover:text-danger`} onClick={() => handleRevokeInvite(invite.token)} type="button">
+                            {t("remove")}
+                          </button>
+                        ) : null}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : null}
+            <section className="invite-settings mt-auto border-t border-line pt-4 text-dim" aria-label={t("inviteExpiration")}>
+              <p className="setting-label lowercase">{t("newInviteExpires")}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {INVITE_PRESETS.map((preset) => {
+                  const active = inviteDuration.amount === preset.amount && inviteDuration.unit === preset.unit;
+                  return (
+                    <button
+                      aria-pressed={active}
+                      className={`rounded border px-2 py-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acc ${active ? "border-acc text-acc" : "border-line hover:text-fg"}`}
+                      key={preset.label}
+                      onClick={() => setInviteDuration({ amount: preset.amount, unit: preset.unit })}
+                      type="button"
+                    >
+                      {preset.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="setting-controls mt-2 flex gap-2">
+                <input
+                  aria-label={t("inviteLifetimeAmount")}
+                  className="setting-input w-16 min-w-0 rounded border border-line bg-bg px-2 py-1 text-fg focus-visible:border-acc focus-visible:outline-none"
+                  inputMode="numeric"
+                  min="1"
+                  onChange={(event) =>
+                    setInviteDuration((current) => ({ ...current, amount: event.target.value }))
+                  }
+                  type="number"
+                  value={inviteDuration.amount}
+                />
+                <select
+                  aria-label={t("inviteLifetimeUnit")}
+                  className="setting-select min-w-0 flex-1 rounded border border-line bg-bg px-2 py-1 lowercase text-fg focus-visible:border-acc focus-visible:outline-none"
+                  onChange={(event) =>
+                    setInviteDuration((current) => ({
+                      ...current,
+                      unit: event.target.value as DurationUnit
+                    }))
+                  }
+                  value={inviteDuration.unit}
+                >
+                  <option value="minutes">{t("minutes")}</option>
+                  <option value="hours">{t("hours")}</option>
+                  <option value="days">{t("days")}</option>
+                </select>
+              </div>
+              <p className="setting-note mt-2">{t("inviteNextOnly")}</p>
+            </section>
+          </div>
+        </aside>
+      ) : null}
+
+      <section className="box flex min-h-0 flex-1 flex-col lg:col-start-1 lg:row-start-1" aria-label={t("messagesBoxTitle")}>
+        <span className="box-title">{t("messagesBoxTitle")}</span>
+        {conversationFind.panel}
+        {roomNotice ? (
+          <p className="room-notice flex-none px-4 pt-4 text-center text-[11px] text-dim" role="status" aria-live="polite">
+            {roomNotice}
+          </p>
+        ) : null}
+        {error ? <p className="room-error flex-none px-4 pt-4 text-xs text-danger" role="alert">{error}</p> : null}
+        {connectionError ? <p className="room-error flex-none px-4 pt-4 text-xs text-danger" role="alert">{connectionError}</p> : null}
+        <div className="chat-stage relative flex min-h-0 flex-1 flex-col">
+          <section aria-label={t("conversationLog")} aria-live="polite" aria-relevant="additions" className="chat-log min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pt-6 [scrollbar-width:thin] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-acc" ref={chatLogRef} role="log" tabIndex={0} onScroll={handleConversationScroll}>
+          <div className="chat-thread flex min-h-full flex-col gap-3 text-sm">
+            {!ready ? <p className="system-line text-center text-[11px] text-dim">{t("deriving")}</p> : null}
+            {messages.length === 0 && ready ? (
+              <p className="system-line text-center text-[11px] text-dim">{messagePolicyLabel}</p>
+            ) : null}
+            {messages.map((message) => {
+              const mine = message.senderSessionId === sessionId;
+              return (
+                <article
+                  className={`bubble ${mine ? "bubble-mine ml-auto" : "bubble-theirs"} w-fit min-w-0 max-w-[88%] border-l-2 px-3 py-2 sm:max-w-[min(66ch,80%)]${conversationFind.selectedId === message.id ? " bubble-find-selected outline-2 -outline-offset-2 outline-acc2" : ""}`}
+                  data-message-id={message.id}
+                  key={message.id}
+                  style={bubbleStyle(message.senderSessionId)}
+                >
+                  <div className="flex justify-between gap-4 text-[11px] text-dim">
+                    <span className="bubble-author lowercase">
+                      {mine ? t("you") : t("guest")}{message.kind === "file" ? ` · ${t("fileTag")}` : ""}
+                    </span>
+                    <span className="whitespace-nowrap tabular-nums">
+                      <time dateTime={new Date(message.sentAt).toISOString()}>{formatClock(message.sentAt)}</time>
+                      {message.expiresAt ? (
+                        <span aria-hidden="true"> · -{formatRelativeDuration(message.expiresAt)}</span>
+                      ) : null}
+                      <span className="sr-only">{messageStatus(message)}</span>
+                    </span>
+                  </div>
+                  {message.kind === "file" && message.file ? (
+                    <FileCard
+                      file={message.file}
+                      onDownload={() =>
+                        handleRequestFile(message.file!.fileId, message.senderSessionId)
+                      }
+                    />
+                  ) : (
+                    <p className="mt-1 break-words [overflow-wrap:anywhere]">{message.plaintext}</p>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+          </section>
+          {awayFromLatest ? (
+            <button
+              className={`jump-to-latest absolute bottom-3 left-1/2 z-10 max-w-[calc(100%-2rem)] -translate-x-1/2 bg-panel shadow-lg ${roomButtonClass} border-acc2 text-acc2`}
+              type="button"
+              onClick={() => {
+                jumpToLatest();
+                chatLogRef.current?.focus({ preventScroll: true });
+              }}
+            >
+              {newMessageCount > 0 ? t("newMessagesJump", { count: newMessageCount }) : t("jumpToLatest")}
+            </button>
+          ) : null}
+        </div>
+
+        <form className="composer flex flex-none items-end gap-2 border-t border-line p-3 focus-within:border-acc/60" onSubmit={handleSend}>
+          <button
+            aria-label={t("attachFileLabel")}
+            className={`composer-attach ${roomButtonClass} border-line px-2.5 py-2 text-dim hover:text-fg`}
+            disabled={room?.status !== "open" || !keyReady}
+            onClick={() => fileInputRef.current?.click()}
+            title={t("attachFile")}
+            type="button"
+          >
+            {t("composerAttach")}
+          </button>
+          <input
+            hidden
+            multiple
+            onChange={(event) => void handleAttachFiles(event.target.files)}
+            ref={fileInputRef}
+            type="file"
+          />
+          <textarea
+            aria-label={t("writeMessageLabel")}
+            className="max-h-40 min-h-9 min-w-0 flex-1 resize-none bg-transparent px-1 py-2 text-sm text-fg outline-none [field-sizing:content] placeholder:text-dim disabled:cursor-not-allowed disabled:opacity-60"
+            value={draft}
+            onChange={(event) => {
+              draftRevisionRef.current += 1;
+              setDraft(event.target.value);
+            }}
+            onKeyDown={handleComposerKeyDown}
+            disabled={room?.status !== "open" || !keyReady}
+            placeholder={room?.status === "open" ? (keyReady ? t("writeMessage") : t("securing")) : roomNotice ?? t("roomClosed")}
+            rows={1}
+          />
+          <button
+            aria-label={t("sendEncrypted")}
+            className="grad rounded px-3 py-2 text-xs font-bold lowercase focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acc disabled:cursor-not-allowed disabled:opacity-40"
+            type="submit"
+            disabled={sending || !draft.trim() || room?.status !== "open" || !keyReady}
+          >
+            {t("sendShort")}
+          </button>
+        </form>
+      </section>
+      </div>
+      </div>
     </main>
     </>
   );
 }
+
+// Look B controls shared by the room and its file rows.
+const roomButtonClass = "rounded border px-3 py-1.5 text-xs lowercase focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acc disabled:cursor-not-allowed disabled:opacity-40";
+const roomLinkButtonClass = "lowercase hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acc";
+
+const INVITE_PRESETS: readonly { amount: string; unit: DurationUnit; label: string }[] = [
+  { amount: "10", unit: "minutes", label: "10m" },
+  { amount: "1", unit: "hours", label: "1h" },
+  { amount: "1", unit: "days", label: "1d" }
+];

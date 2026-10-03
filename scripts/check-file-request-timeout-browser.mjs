@@ -139,7 +139,7 @@ try {
     for (const name of ['no-chunks.bin','partial.bin']) {
       const card = fileCard(creator,name);
       phase = name === 'no-chunks.bin' ? 'zero-chunk request times out' : 'partial request times out';
-      await card.getByText('Transfer failed—ask for a re-share',{exact:true}).waitFor({timeout:35000});
+      await card.getByText('Transfer failed: ask for a re-share',{exact:true}).waitFor({timeout:35000});
       check(await card.getByRole('link').count() === 0);
     }
   });
@@ -149,14 +149,14 @@ try {
     await card.getByRole('button',{name:'Download departure.bin',exact:true}).click();
     await creator.waitForFunction(() => {const p=[...document.querySelectorAll('.file-card')].find(c=>c.textContent.includes('departure.bin'))?.querySelector('[role=progressbar]');return p && Number(p.getAttribute('aria-valuenow'))>0;});
     await guest.close();
-    await card.getByText('Transfer failed—ask for a re-share',{exact:true}).waitFor();
+    await card.getByText('Transfer failed: ask for a re-share',{exact:true}).waitFor();
     check(await card.getByRole('link').count()===0);
   });
   await creator.getByRole('button',{name:'Destroy',exact:true}).click(); await closed(creator); destroyed=true;
   await step('unrequested offer disappears at its independent message-policy expiry', async () => {
     await creator.goto(origin.href);
     // A separate synthetic six-second policy avoids racing the 31-second idle test.
-    await creator.getByRole('spinbutton', {name:'Message vanish duration',exact:true}).fill('0.1');
+    await creator.getByRole('button',{name:'custom',exact:true}).first().click();await creator.getByRole('spinbutton',{name:'Message vanish duration',exact:true}).fill('0.1');
     await creator.getByRole('button', {name:'Create private conversation',exact:true}).click();
     await ready(creator); destroyed=false;
     roomId=new URL(creator.url()).pathname.split('/').pop();
