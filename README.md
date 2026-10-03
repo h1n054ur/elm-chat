@@ -153,6 +153,7 @@ This is a modified version of [shawnbure/elm-chat](https://github.com/shawnbure/
 | 2026-10-03 | New UI ("look B", terminal identity) on Tailwind v4: landing with duration presets, a `/limits` page, one-surface room with an invites panel, full-screen states, light and dark |
 | 2026-10-03 | Removed elm.chat promotion and tracking: marketing and article pages, sitemap, RSS, IndexNow, `llms.txt`, GitHub star and issue feed, growth analytics (Worker, Durable Object, Analytics Engine), deploy-button route, canonical elm.chat redirect, upstream `security.txt` |
 | 2026-10-03 | CSP `connect-src` tightened to `'self'`; `robots.txt` and a `noindex` meta keep the instance out of search |
+| 2026-10-03 | New browser icon (gradient chat bubble with fading dots); Vite asset inlining off so the CSP never blocks an inlined font |
 | 2026-10-03 | bun instead of npm, Forgejo Actions instead of GitHub Actions, custom domain chat.h1n054ur.dev |
 
 Upstream's history is kept intact; see [CHANGELOG.md](CHANGELOG.md) and [docs/UPSTREAM-SYNC.md](docs/UPSTREAM-SYNC.md) for how upstream changes are pulled in.

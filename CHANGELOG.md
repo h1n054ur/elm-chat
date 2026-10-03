@@ -9,6 +9,8 @@ Changes to this instance (chat.h1n054ur.dev) come first; upstream elm.chat's cha
 - New UI on Tailwind v4 in the h1n054ur terminal look: landing with duration presets and a how-it-works section, `/limits` page, one-surface room with an invites panel, restyled full-screen states, light and dark, phone and desktop.
 - Removed elm.chat promotion and tracking: marketing and article pages, sitemap, RSS, IndexNow, `llms.txt`, social images, GitHub star and issue feed, growth analytics, deploy-button route, canonical elm.chat redirect, upstream `security.txt`.
 - CSP `connect-src` tightened to `'self'`; `robots.txt` disallows all and pages carry `noindex`.
+- Browser icon (favicon.ico, SVG, Apple touch icon): gradient chat bubble with fading dots on the dark tile, generated in bts-brand.
+- Vite no longer inlines assets as `data:` URLs, which the CSP blocked for one font subset.
 - bun workspaces (hoisted linker), Forgejo Actions CI and deploy, custom domain chat.h1n054ur.dev; `wrangler dev` keeps the local origin via `--local-upstream`.
 
 ## Upstream elm.chat
