@@ -2,7 +2,7 @@ import { t, type MessageKey } from "./localization";
 
 export const UPSTREAM_URL = "https://github.com/shawnbure/elm-chat";
 // Public mirror of this instance's modified source: the AGPL-3.0 section 13 offer.
-export const SOURCE_URL = "https://github.com/bts-io/elm-chat";
+export const SOURCE_URL = "https://github.com/h1n054ur/elm-chat";
 
 // Shared visible focus ring for links and buttons in look B.
 export const FOCUS_RING = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acc";
