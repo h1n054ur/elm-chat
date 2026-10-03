@@ -1,0 +1,28 @@
+# Weekly check for upstream elm.chat commits that are not merged here yet. Keeps one Forgejo issue in step
+# (scripts/upstream-watch.mjs opens, updates or closes it). The merge itself stays manual: docs/UPSTREAM-SYNC.md.
+# UPSTREAM_WATCH_TOKEN (secret, may create and edit issues) is set on this repo.
+name: Upstream watch
+
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  watch:
+    runs-on: docker
+    container:
+      image: node:22-bookworm
+    timeout-minutes: 10
+    steps:
+      - uses: https://data.forgejo.org/actions/checkout@v4
+        with:
+          # Full history, so already-merged upstream commits are recognised.
+          fetch-depth: 0
+      - run: git fetch https://github.com/shawnbure/elm-chat.git main
+      - name: Sync the upstream issue
+        env:
+          FORGEJO_URL: ${{ github.server_url }}
+          FORGEJO_REPO: ${{ github.repository }}
+          FORGEJO_TOKEN: ${{ secrets.UPSTREAM_WATCH_TOKEN }}
+        run: node scripts/upstream-watch.mjs
