@@ -8,15 +8,15 @@ Escape closes search and returns focus to its opener only while the search panel
 
 English and Spanish controls follow the existing room language. This feature searches the messages currently available in the room, not complete history. Browser behavior and screen-reader speech are distinct verification claims; automated role/focus assertions do not establish spoken output.
 
-The pure matching/navigation tests run with `npm test`. The browser harness uses real local Worker/Durable Object HTTP and WebSocket traffic, native encryption, and a separate synthetic six-second message-policy room for expiry. No room transport or crypto is mocked. Agent3 contributed this fixture; its authorship is distinct from independent review.
+The pure matching/navigation tests run with `bun run test`. The browser harness uses real local Worker/Durable Object HTTP and WebSocket traffic, native encryption, and a separate synthetic six-second message-policy room for expiry. No room transport or crypto is mocked. Agent3 contributed this fixture; its authorship is distinct from independent review.
 
 Build and start a local Worker in a separate terminal, using free ports and isolated state:
 
 ```sh
-npm ci
-npm run build
+bun install --frozen-lockfile
+bun run build
 env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID WRANGLER_SEND_METRICS=false \
-  npx wrangler dev --config wrangler.jsonc --local --ip 127.0.0.1 \
+  bunx wrangler dev --config wrangler.jsonc --local --ip 127.0.0.1 \
   --port 54541 --inspector-port 54542 --local-upstream 127.0.0.1:54541 --persist-to /tmp/elm-find-test --log-level none
 ```
 

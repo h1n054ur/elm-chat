@@ -4,7 +4,7 @@ The conversation follows arrivals while the reader is within 48 CSS pixels of th
 
 ## Regression checks
 
-`npm test` covers the follow threshold, short/overscrolled logs, arrival accumulation, expiry pruning, same-count replacements, duplicate updates, and clearing pending IDs when following resumes.
+`bun run test` covers the follow threshold, short/overscrolled logs, arrival accumulation, expiry pruning, same-count replacements, duplicate updates, and clearing pending IDs when following resumes.
 
 For browser verification, use a local room with enough messages to overflow:
 

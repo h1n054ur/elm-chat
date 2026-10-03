@@ -9,9 +9,9 @@ No room HTTP responses or WebSocket messages are mocked.
 
 ## Prerequisites and execution
 
-Use Node.js 24 and `npm ci`, then `npm run build`. Install Playwright separately
-(for example in a temporary tools directory with `npm install playwright` and
-`npx playwright install chromium`). Set `PLAYWRIGHT_MODULE` to that installation's
+Use Node.js 24 and `bun install --frozen-lockfile`, then `bun run build`. Install Playwright separately
+(for example in a temporary tools directory with `bun install playwright` and
+`bunx playwright install chromium`). Set `PLAYWRIGHT_MODULE` to that installation's
 absolute `node_modules/playwright/index.mjs` path. If Playwright is already
 resolvable from this repository, the variable may be omitted. Optionally set
 `CHROME_PATH` to an existing Chromium/Chrome executable.
@@ -20,7 +20,7 @@ Start the self-host configuration in a dedicated terminal:
 
 ```sh
 env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID WRANGLER_SEND_METRICS=false \
-  npx wrangler dev --config wrangler.jsonc --local --ip 127.0.0.1 \
+  bunx wrangler dev --config wrangler.jsonc --local --ip 127.0.0.1 \
   --port 5210 --inspector-port 9310 --local-upstream 127.0.0.1:5210 --persist-to .wrangler/local-smoke --log-level none
 ```
 

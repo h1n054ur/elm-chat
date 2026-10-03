@@ -12,10 +12,10 @@ local display only; it is not proof that another participant received it.
 | Reconnect backoff | Attempts wait 0.5, 1, 2, 4, and 8 seconds, then stop | `tests/recovery-state.test.ts` |
 | Metadata recovery | Network errors, HTTP 408, and HTTP 5xx share the socket reconnect budget; missing rooms remain terminal; canceled retries do not run | `tests/reconnect-metadata.test.ts` |
 | Deliberate retry | Retry is available only after exhaustion; one action starts one new bounded cycle; repeated clicks and terminal states cannot revive attempts | `tests/reconnect-metadata.test.ts` |
-| Replay after refresh | A verified event ID remains rejected after the guard is reconstructed | `tests/recovery-state.test.ts` and `npm run check:message-protocol` |
+| Replay after refresh | A verified event ID remains rejected after the guard is reconstructed | `tests/recovery-state.test.ts` and `bun run check:message-protocol` |
 | Corrupt or blocked storage | The tab keeps in-memory protection and does not crash | `tests/recovery-state.test.ts` |
-| Sender and room binding | Changed sender, room, target, payload, or signature fails verification | `npm run check:message-protocol` |
-| Membership rotation | Pairwise-wrapped epoch secrets decrypt only with the intended peer context | `npm run check:message-protocol` |
+| Sender and room binding | Changed sender, room, target, payload, or signature fails verification | `bun run check:message-protocol` |
+| Membership rotation | Pairwise-wrapped epoch secrets decrypt only with the intended peer context | `bun run check:message-protocol` |
 | Relay admission | Unjoined sockets, duplicate identities, and unsigned events are rejected | `tests/room-security.test.ts` |
 
 ## Manual mobile and network matrix

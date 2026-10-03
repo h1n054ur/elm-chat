@@ -5,8 +5,8 @@ This opt-in browser harness runs the real React application and native WebCrypto
 From the repository root, install dependencies and start Vite on loopback in a separate terminal:
 
 ```sh
-npm ci
-npm run dev --workspace @elm-chat/web -- --host 127.0.0.1 --port 5197 --strictPort
+bun install --frozen-lockfile
+bun run dev --workspace @elm-chat/web -- --host 127.0.0.1 --port 5197 --strictPort
 ```
 
 Run with an externally installed Playwright module and browser (omit either override to use the normal Playwright resolution/browser installation):

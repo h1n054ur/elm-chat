@@ -9,10 +9,10 @@ Progress retains `aria-live="off"`. This change adds no live announcement region
 For the opt-in browser regression, build and start the real local Worker with isolated state:
 
 ```sh
-npm ci
-npm run build
+bun install --frozen-lockfile
+bun run build
 env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID WRANGLER_SEND_METRICS=false \
-  npx wrangler dev --config wrangler.jsonc --local --ip 127.0.0.1 \
+  bunx wrangler dev --config wrangler.jsonc --local --ip 127.0.0.1 \
   --port 5227 --inspector-port 9327 --local-upstream 127.0.0.1:5227 --persist-to /tmp/elm-file-focus-test
 ```
 

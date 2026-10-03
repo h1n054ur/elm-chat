@@ -1,82 +1,14 @@
-# Contributing to elm.chat
+# Contributing
 
-Thank you for considering a contribution. elm.chat is an open effort to build genuinely private, ephemeral messaging with as little server trust as possible. High standards are welcome — this is security-sensitive software, and thoughtful scrutiny is a feature, not a nuisance.
+This repository is the source for the instance at https://chat.h1n054ur.dev. It is developed on a private Forgejo instance and published here as a read-only mirror, so issues and pull requests are not tracked on GitHub.
 
-## Ways to contribute
+- Problems in the protocol, crypto or room lifecycle that affect elm.chat itself: report them [upstream](https://github.com/shawnbure/elm-chat).
+- Want your own instance or a different look: fork it, see "Deploy your own" in the [README](README.md). The code is AGPL-3.0, so a modified public instance must offer its source to its users.
 
-You don't have to write code to help:
+Before sending anything upstream, run the same checks this repository runs:
 
-- **Cryptographic review** — audit the key exchange, message encryption, and secret handling. Challenge our assumptions.
-- **Protocol design** — transcript sync, deduplication, peer authentication, replay resistance.
-- **Threat modeling** — poke holes in `docs/threat-model.md`. Adversarial thinking is the point.
-- **Mobile-first UX** — the app should be usable under stress, on a phone, one-handed.
-- **Accessibility** — screen-reader support, keyboard nav, high-contrast, reduced motion.
-- **Documentation** — clarify, correct, and expand the docs.
-- **Bug reports** — file precise, reproducible issues.
-
-See [good first issues](docs/GOOD-FIRST-ISSUES.md) for scoped starting points.
-For design questions, self-hosting reports, and ideas that are not yet actionable bugs,
-use [GitHub Discussions](https://github.com/shawnbure/elm-chat/discussions). The
-[start-here discussion](https://github.com/shawnbure/elm-chat/discussions/42)
-collects the live demo, architecture, threat model, and current newcomer tasks.
-
-## Ground rules
-
-1. **Privacy is the product.** If a change improves convenience but expands retention, logging, observability, or recoverable history, it will be challenged hard. Justify any new data that touches the server.
-2. **No new telemetry on room contents.** Aggregate, content-free counters on public surfaces (landing/invite pages) are fine; anything that could deanonymize participants or reconstruct a transcript is not.
-3. **Small, reviewable PRs.** One concern per pull request. Large refactors should start in [Discussions](https://github.com/shawnbure/elm-chat/discussions) before becoming an issue or pull request.
-4. **Explain the security implications.** Every PR description should answer: does this change what the server can see, retain, or reconstruct?
-
-## Development setup
-
-Prerequisites: Node.js 24 + npm (matching CI), and a Cloudflare account only if you want to deploy.
-
-```bash
-git clone https://github.com/shawnbure/elm-chat.git
-cd elm-chat
-npm ci
-npm run build   # once, creates apps/web/dist which wrangler dev expects
-npm run dev     # runs the Worker + Vite dev server together
+```sh
+bun run typecheck
+bun run build
+bun run test
 ```
-
-Open `http://localhost:3000`, create a room, then open the invite link in a second tab to see live encrypted chat. See `README.md` for VS Code run/debug configs and Turnstile setup.
-
-## Pull request checklist
-
-CI runs the following checks on pull requests and pushes to `main`. Run them
-locally in this order; the Workers tests need the generated `apps/web/dist` assets:
-
-```bash
-npm run typecheck
-npm run build
-npm test
-```
-
-The build includes the repository's configuration, privacy, protocol, community
-feed, and security-copy checks, plus a Worker deployment dry run. These checks
-use no deployment credentials and do not deploy the app. Automated checks do
-not replace the real-device [recovery and accessibility matrix](docs/RECOVERY-ACCESSIBILITY-TEST-MATRIX.md)
-or an independent security review.
-
-- [ ] `npm run typecheck` passes.
-- [ ] `npm run build` succeeds.
-- [ ] `npm test` passes.
-- [ ] The PR is scoped to a single concern.
-- [ ] The description states any change to what the server can see, log, or retain.
-- [ ] New user-facing strings are clear and calm (this app is often used under stress).
-- [ ] No secrets, keys, or `.env` files committed.
-
-For a repeatable two-browser check against a real local Worker and relay, see
-[the local relay smoke instructions](docs/LOCAL-RELAY-SMOKE.md).
-
-## Reporting security issues
-
-**Do not open a public issue for a vulnerability.** Follow the process in [SECURITY.md](SECURITY.md).
-
-## License
-
-By contributing, you agree that your contributions are licensed under the project's [GNU AGPL-3.0](LICENSE). This keeps every public deployment — including modified ones — open to its users, which is the whole point of a trust-minimizing tool.
-
-## Code of conduct
-
-Participation is governed by our [Code of Conduct](CODE_OF_CONDUCT.md). Be rigorous with ideas and kind to people.

@@ -81,14 +81,14 @@ signed offer and completion event.
 
 ## Automated adversarial checks
 
-`npm run check:message-protocol` pins the v3 AES-GCM vector, verifies signed
+`bun run check:message-protocol` pins the v3 AES-GCM vector, verifies signed
 events and pairwise epoch wrapping, and rejects changed ciphertext, metadata,
 room, epoch, payload, signature context, and rotation context. It also covers
 duplicates, concurrency, out-of-order delivery, failed verification retry,
 expiry garbage collection, persistent replay state, corrupt storage, and key
 mismatch.
 
-`npm test` covers room admission, session-to-key binding, unsigned relay
+`bun run test` covers room admission, session-to-key binding, unsigned relay
 rejection, bounded reconnect state, and replay behavior. The
 [recovery and accessibility matrix](RECOVERY-ACCESSIBILITY-TEST-MATRIX.md)
 lists the real browser and assistive-technology checks still required for a

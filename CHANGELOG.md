@@ -1,6 +1,17 @@
 # Changelog
 
-All notable changes to elm.chat are documented here.
+Changes to this instance (chat.h1n054ur.dev) come first; upstream elm.chat's changelog follows unchanged.
+
+## chat.h1n054ur.dev
+
+### 2026-10-03
+
+- New UI on Tailwind v4 in the h1n054ur terminal look: landing with duration presets and a how-it-works section, `/limits` page, one-surface room with an invites panel, restyled full-screen states, light and dark, phone and desktop.
+- Removed elm.chat promotion and tracking: marketing and article pages, sitemap, RSS, IndexNow, `llms.txt`, social images, GitHub star and issue feed, growth analytics, deploy-button route, canonical elm.chat redirect, upstream `security.txt`.
+- CSP `connect-src` tightened to `'self'`; `robots.txt` disallows all and pages carry `noindex`.
+- bun workspaces (hoisted linker), Forgejo Actions CI and deploy, custom domain chat.h1n054ur.dev; `wrangler dev` keeps the local origin via `--local-upstream`.
+
+## Upstream elm.chat
 
 ## Unreleased
 

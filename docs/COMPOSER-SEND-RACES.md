@@ -5,8 +5,8 @@ This opt-in browser harness exercises the real React composer with native WebCry
 Start a local Vite server from the repository root:
 
 ```sh
-npm ci
-npm run dev --workspace @elm-chat/web -- --host 127.0.0.1 --port 5197 --strictPort
+bun install --frozen-lockfile
+bun run dev --workspace @elm-chat/web -- --host 127.0.0.1 --port 5197 --strictPort
 ```
 
 Then run the harness with your external Playwright/browser installation, or omit these overrides to use Playwright's normal resolution and browser:

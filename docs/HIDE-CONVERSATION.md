@@ -13,10 +13,10 @@ English/Spanish labels follow the existing locale. Automated visual/role/focus c
 To verify locally, build and start a Worker on free ports with isolated state:
 
 ```sh
-npm ci
-npm run build
+bun install --frozen-lockfile
+bun run build
 env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID WRANGLER_SEND_METRICS=false \
-  npx wrangler dev --config wrangler.jsonc --local --ip 127.0.0.1 \
+  bunx wrangler dev --config wrangler.jsonc --local --ip 127.0.0.1 \
   --port 54561 --inspector-port 54562 --local-upstream 127.0.0.1:54561 --persist-to /tmp/elm-hide-test --log-level none
 ```
 

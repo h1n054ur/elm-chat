@@ -46,6 +46,7 @@ export const english = {
   limitsNotAudit: "The code has not been independently audited.",
   limitsUpstream: "Based on the open-source elm.chat project, licensed AGPL-3.0.",
   limitsUpstreamLink: "upstream source",
+  limitsSourceLink: "this instance's source",
   // --- end B ---
   minutes: "Minutes",
   hours: "Hours",
@@ -248,6 +249,7 @@ export const spanish: Record<MessageKey, string> = {
   limitsNotAudit: "El código no ha pasado una auditoría independiente.",
   limitsUpstream: "Basado en el proyecto de código abierto elm.chat, con licencia AGPL-3.0.",
   limitsUpstreamLink: "código original",
+  limitsSourceLink: "código de esta instancia",
   // --- end B ---
   minutes: "Minutos",
   hours: "Horas",

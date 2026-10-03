@@ -5,7 +5,7 @@ only the guest's real TCP transport. It keeps the guest page mounted, forwards
 bytes unchanged to a local Worker/Durable Object, and does not replace HTTP
 responses or WebSocket messages. The original relay/file smoke stays separate.
 
-Follow the linked prerequisites (`npm ci`, built web assets, Playwright and
+Follow the linked prerequisites (`bun install --frozen-lockfile`, built web assets, Playwright and
 Chromium). Start your dedicated root Wrangler configuration using its documented
 command, then run:
 

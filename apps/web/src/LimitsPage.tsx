@@ -1,6 +1,8 @@
 import { t, type MessageKey } from "./localization";
 
 export const UPSTREAM_URL = "https://github.com/shawnbure/elm-chat";
+// Public mirror of this instance's modified source: the AGPL-3.0 section 13 offer.
+export const SOURCE_URL = "https://github.com/bts-io/elm-chat";
 
 // Shared visible focus ring for links and buttons in look B.
 export const FOCUS_RING = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-acc";
@@ -20,7 +22,7 @@ export function SiteHeader() {
       <nav aria-label={t("navLabel")} className="flex gap-4 text-dim">
         <a className={`rounded-sm hover:text-fg ${FOCUS_RING}`} href="/#how">{t("navHow")}</a>
         <a className={`rounded-sm hover:text-fg ${FOCUS_RING}`} href="/limits">{t("navLimits")}</a>
-        <a className={`rounded-sm hover:text-fg ${FOCUS_RING}`} href={UPSTREAM_URL} rel="noreferrer" target="_blank">
+        <a className={`rounded-sm hover:text-fg ${FOCUS_RING}`} href={SOURCE_URL} rel="noreferrer" target="_blank">
           {t("navSource")}
         </a>
       </nav>
@@ -88,6 +90,15 @@ export function LimitsPage() {
               target="_blank"
             >
               {t("limitsUpstreamLink")}
+            </a>
+            {" · "}
+            <a
+              className={`rounded-sm text-acc2 underline underline-offset-2 hover:text-fg ${FOCUS_RING}`}
+              href={SOURCE_URL}
+              rel="noreferrer"
+              target="_blank"
+            >
+              {t("limitsSourceLink")}
             </a>
           </p>
 

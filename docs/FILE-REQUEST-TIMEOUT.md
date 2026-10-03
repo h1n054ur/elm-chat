@@ -5,10 +5,10 @@ An incoming file offer remains available until its message policy expires or its
 Build and start the local Worker with isolated state:
 
 ```sh
-npm ci
-npm run build
+bun install --frozen-lockfile
+bun run build
 env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID WRANGLER_SEND_METRICS=false \
-  npx wrangler dev --config wrangler.jsonc --local --ip 127.0.0.1 \
+  bunx wrangler dev --config wrangler.jsonc --local --ip 127.0.0.1 \
   --port 5222 --inspector-port 9322 --local-upstream 127.0.0.1:5222 --persist-to /tmp/elm-file-timeout-test
 ```
 
