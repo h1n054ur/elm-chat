@@ -16,7 +16,7 @@ jobs:
   deploy:
     runs-on: docker
     container:
-      image: node:22-bookworm
+      image: node:22-bookworm@sha256:0e5f906573693feaa1e21057ebdcfdb5bd5021f050b2dc7c9deceb629c7da2a8
     timeout-minutes: 20
     defaults:
       run:
@@ -30,7 +30,7 @@ jobs:
       - uses: https://data.forgejo.org/actions/checkout@v4
       - uses: https://github.com/oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.2
+          bun-version: 1.4.3
       - run: bun install --frozen-lockfile
       - name: Build
         run: bun run build
