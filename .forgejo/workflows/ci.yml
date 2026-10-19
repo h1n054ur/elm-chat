@@ -15,7 +15,7 @@ jobs:
   check:
     runs-on: docker
     container:
-      image: node:22-bookworm
+      image: node:24-bookworm@sha256:14078204b6bb268c107ceff6d3c43f45a888105e5c2b18b14c32b3409d93a1b0
     timeout-minutes: 20
     defaults:
       run:
