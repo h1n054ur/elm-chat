@@ -15,7 +15,7 @@ jobs:
   check:
     runs-on: docker
     container:
-      image: node:22-bookworm
+      image: node:22-bookworm@sha256:63538dfe497cc29dfafdda25ada09b46db68a3f4cc205abf1f5d6bf0913f3384
     timeout-minutes: 20
     defaults:
       run:
@@ -27,7 +27,7 @@ jobs:
       - uses: https://github.com/oven-sh/setup-bun@v2
         with:
           # Same Bun that wrote bun.lock, so --frozen-lockfile agrees with it.
-          bun-version: 1.4.2
+          bun-version: 1.4.4
       - run: bun install --frozen-lockfile
       - name: Typecheck
         run: bun run typecheck
