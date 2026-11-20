@@ -12,7 +12,7 @@ jobs:
   watch:
     runs-on: docker
     container:
-      image: node:22-bookworm
+      image: node:22-bookworm@sha256:e13726ca604184d7a91fcacab1fc09eefd642dc28e79ac34e85540dd93b78cfb
     timeout-minutes: 10
     steps:
       - uses: https://data.forgejo.org/actions/checkout@v4
